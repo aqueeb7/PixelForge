@@ -1,0 +1,74 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────
+   PixelForge Design System
+   ───────────────────────────────────────────── */
+
+@theme {
+  /* Colors */
+  --color-bg-base:       #0d0d10;
+  --color-bg-surface:    #13131a;
+  --color-bg-elevated:   #1a1a24;
+  --color-bg-sidebar:    #0f0f16;
+  --color-border:        #252533;
+  --color-border-subtle: #1e1e2a;
+
+  /* Accent — electric violet */
+  --color-accent:        #7c6fff;
+  --color-accent-hover:  #9585ff;
+  --color-accent-dim:    rgba(124, 111, 255, 0.15);
+
+  /* Status */
+  --color-success:       #34d399;
+  --color-warning:       #fbbf24;
+  --color-error:         #f87171;
+  --color-disconnected:  #6b7280;
+
+  /* Text */
+  --color-text-primary:  #f0f0f8;
+  --color-text-secondary:#9999b3;
+  --color-text-muted:    #55556a;
+
+  /* Typography */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Sidebar */
+  --sidebar-width: 220px;
+}
+
+/* ─────────────────────────────────────────────
+   Reset & Base
+   ───────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #app {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
+
+/* ─────────────────────────────────────────────
+   Scrollbar (dark, minimal)
+   ───────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
