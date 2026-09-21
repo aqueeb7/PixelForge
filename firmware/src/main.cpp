@@ -7,6 +7,10 @@
 ProtocolHandler protocol;
 DisplayDriver display;
 
+static uint32_t totalFramesRendered = 0;
+static uint32_t lastFrameRenderTime = 0;
+static float smoothedFps = 0.0f;
+
 void handleCommand(const RxPacket& packet) {
     switch (packet.msgType) {
         case CMD_PING:
@@ -41,8 +45,33 @@ void handleCommand(const RxPacket& packet) {
             } else {
                 display.renderCanonicalFrame(packet.payload);
                 protocol.sendFrameAck(0x00);
+
+                totalFramesRendered++;
+                uint32_t now = millis();
+                if (lastFrameRenderTime > 0 && now > lastFrameRenderTime) {
+                    float instantFps = 1000.0f / (float)(now - lastFrameRenderTime);
+                    smoothedFps = (smoothedFps * 0.7f) + (instantFps * 0.3f);
+                }
+                lastFrameRenderTime = now;
             }
             break;
+
+        case CMD_GET_TELEMETRY: {
+            uint32_t freeH = ESP.getFreeHeap();
+            uint32_t minH = ESP.getMinFreeHeap();
+            uint32_t totalH = ESP.getHeapSize();
+            uint32_t uptimeSec = millis() / 1000;
+            uint16_t fpsX10 = (uint16_t)(smoothedFps * 10.0f);
+            protocol.sendTelemetry(freeH, minH, totalH, uptimeSec, fpsX10, 255, 0, totalFramesRendered);
+            break;
+        }
+
+        case CMD_RESTART_DEVICE: {
+            protocol.sendRestartAck(0x00);
+            delay(50);
+            ESP.restart();
+            break;
+        }
 
         default:
             protocol.sendError(0x01, "Unsupported command");

@@ -231,3 +231,92 @@ export async function saveHardwareConfig(config: HardwareConfig): Promise<void> 
     }
   })
 }
+
+// ==============================================================================
+// Device Diagnostics, Telemetry & Firmware Flasher (Spec 005)
+// ==============================================================================
+
+import type { ChipDossier, DeviceTelemetry } from '../types/monitor'
+
+export async function getTelemetry(): Promise<DeviceTelemetry> {
+  return safeInvoke<DeviceTelemetry>('get_telemetry', undefined, () => ({
+    timestamp_ms: Date.now(),
+    uptime_seconds: 42,
+    free_heap: 245120,
+    min_free_heap: 198400,
+    total_heap: 327680,
+    heap_usage_percent: 25.2,
+    current_fps: 30.0,
+    oled_contrast: 255,
+    wifi_status: 'connected',
+    frame_counter: 1260,
+  }))
+}
+
+export async function restartDevice(hard = false): Promise<void> {
+  return safeInvoke<void>('restart_device', { hard }, () => {
+    console.log(`[Web Mode] Simulated device ${hard ? 'hard' : 'soft'} restart`)
+  })
+}
+
+export async function sendSerialCommand(text: string, lineEnding = 'CRLF'): Promise<void> {
+  return safeInvoke<void>('send_serial_command', { text, lineEnding }, () => {
+    console.log(`[Web Mode] Sent serial command: ${text} (${lineEnding})`)
+  })
+}
+
+export async function sendSerialRawHex(hexString: string): Promise<number> {
+  return safeInvoke<number>('send_serial_raw_hex', { hexString }, () => {
+    return hexString.replace(/\s+/g, '').length / 2
+  })
+}
+
+export async function pollSerialEvents(): Promise<string[]> {
+  return safeInvoke<string[]>('poll_serial_events', undefined, () => [])
+}
+
+export async function detectChipDossier(): Promise<ChipDossier> {
+  return safeInvoke<ChipDossier>('detect_chip_dossier', undefined, () => ({
+    chip_model: 'ESP32-D0WDQ6',
+    revision: 'Rev 3.0',
+    mac_address: '24:6F:28:3C:D2:18',
+    flash_size_bytes: 4 * 1024 * 1024,
+    flash_mode: 'DIO @ 40MHz',
+    crystal_freq_mhz: 40,
+    cpu_freq_mhz: 240,
+    features: [
+      'Wi-Fi 802.11 b/g/n',
+      'Bluetooth 4.2 / BLE',
+      'Dual Tensilica LX6 Cores',
+      'Hardware Crypto (AES/SHA/RSA)',
+    ],
+  }))
+}
+
+export async function flashFirmware(
+  port: string,
+  fileBytes?: Uint8Array,
+  offset = 0x10000,
+  baudRate = 460800
+): Promise<void> {
+  return safeInvoke<void>(
+    'flash_firmware',
+    {
+      port,
+      fileBytes: fileBytes ? Array.from(fileBytes) : undefined,
+      offset,
+      baudRate,
+    },
+    async () => {
+      // Simulate flashing delay in browser demo mode
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+    }
+  )
+}
+
+export async function eraseDeviceFlash(port: string, baudRate = 115200): Promise<void> {
+  return safeInvoke<void>('erase_device_flash', { port, baudRate }, async () => {
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  })
+}
+

@@ -11,7 +11,9 @@ enum CommandType : uint8_t {
     CMD_PING = 0x01,
     CMD_GET_DEVICE_INFO = 0x02,
     CMD_SEND_FRAME = 0x03,
-    CMD_CLEAR_DISPLAY = 0x04
+    CMD_CLEAR_DISPLAY = 0x04,
+    CMD_GET_TELEMETRY = 0x05,
+    CMD_RESTART_DEVICE = 0x06
 };
 
 // Device Responses (High-bit convention: 0x80 | CMD)
@@ -20,6 +22,8 @@ enum ResponseType : uint8_t {
     RESP_DEVICE_INFO = 0x82,
     RESP_FRAME_ACK = 0x83,
     RESP_CLEAR_ACK = 0x84,
+    RESP_TELEMETRY_DATA = 0x85,
+    RESP_RESTART_ACK = 0x86,
     RESP_ERROR = 0xFF
 };
 
@@ -43,6 +47,10 @@ public:
     void sendDeviceInfo(const char* jsonStr);
     void sendFrameAck(uint8_t status);
     void sendClearAck(uint8_t status);
+    void sendTelemetry(uint32_t freeHeap, uint32_t minFreeHeap, uint32_t totalHeap,
+                        uint32_t uptimeSec, uint16_t fpsX10, uint8_t contrast,
+                        uint8_t wifiStatus, uint32_t frameCounter);
+    void sendRestartAck(uint8_t status);
     void sendError(uint8_t errCode, const char* errMsg);
 
 private:

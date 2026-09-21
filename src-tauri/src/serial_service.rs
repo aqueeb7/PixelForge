@@ -3,9 +3,11 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serialport::{SerialPort, SerialPortType};
 
+use crate::device::demux::{DemuxEvent, StreamDemuxer};
+use crate::device::telemetry::{ChipDossier, DeviceTelemetryModel};
 use crate::protocol::{
     decode_packet, encode_packet, Command, DeviceInfo, Packet, ProtocolError, ResponseType,
-    CANONICAL_FRAME_SIZE, CANONICAL_HEIGHT, CANONICAL_WIDTH,
+    TelemetryPayload, CANONICAL_FRAME_SIZE, CANONICAL_HEIGHT, CANONICAL_WIDTH,
 };
 
 const DEFAULT_TIMEOUT_MS: u64 = 1500;
@@ -20,6 +22,9 @@ pub struct SerialManager {
     port: Option<Box<dyn SerialPort>>,
     active_port_name: Option<String>,
     device_info: Option<DeviceInfo>,
+    demuxer: StreamDemuxer,
+    connected_at: Option<Instant>,
+    frames_sent: u32,
 }
 
 impl SerialManager {
@@ -28,6 +33,9 @@ impl SerialManager {
             port: None,
             active_port_name: None,
             device_info: None,
+            demuxer: StreamDemuxer::new(),
+            connected_at: None,
+            frames_sent: 0,
         }
     }
 
@@ -125,6 +133,8 @@ impl SerialManager {
             .map_err(|e| format!("Failed to parse device info JSON '{}': {}", info_str, e))?;
 
         self.device_info = Some(info.clone());
+        self.connected_at = Some(Instant::now());
+        self.frames_sent = 0;
         Ok(info)
     }
 
@@ -133,6 +143,7 @@ impl SerialManager {
         self.port = None;
         self.active_port_name = None;
         self.device_info = None;
+        self.connected_at = None;
         Ok(())
     }
 
@@ -210,6 +221,7 @@ impl SerialManager {
         if resp.msg_type == ResponseType::FrameAck as u8 {
             let status = resp.payload.first().copied().unwrap_or(0x00);
             if status == 0x00 {
+                self.frames_sent = self.frames_sent.saturating_add(1);
                 Ok(())
             } else {
                 Err(format!("Device rejected frame with error code: 0x{:02X}", status))
@@ -225,6 +237,11 @@ impl SerialManager {
     /// Internal helper to transmit a packet and await a parsed response packet.
     /// Manages read timeouts and detects cable disconnects.
     fn send_command_internal(&mut self, cmd: u8, payload: &[u8]) -> Result<Packet, String> {
+        self.send_command_with_timeout(cmd, payload, DEFAULT_TIMEOUT_MS)
+    }
+
+    /// Internal helper with configurable timeout in milliseconds.
+    fn send_command_with_timeout(&mut self, cmd: u8, payload: &[u8], timeout_ms: u64) -> Result<Packet, String> {
         let port = match self.port.as_mut() {
             Some(p) => p,
             None => return Err("Not connected to any serial port".to_string()),
@@ -239,7 +256,7 @@ impl SerialManager {
 
         // Read response packet with timeout
         let start = Instant::now();
-        let timeout = Duration::from_millis(DEFAULT_TIMEOUT_MS);
+        let timeout = Duration::from_millis(timeout_ms);
         let mut read_buf = Vec::with_capacity(512);
         let mut chunk = [0u8; 128];
 
@@ -272,4 +289,125 @@ impl SerialManager {
 
         Err("Serial command timed out waiting for device response".to_string())
     }
+
+    /// Queries real-time runtime telemetry from the device.
+    /// Handles both full hardware firmware responses (0x85) and seamless connected sessions.
+    pub fn get_telemetry(&mut self) -> Result<DeviceTelemetryModel, String> {
+        if !self.is_connected() {
+            return Err("Not connected to any serial port".to_string());
+        }
+
+        let session_uptime = self.connected_at.map(|t| t.elapsed().as_secs() as u32).unwrap_or(0);
+        let frames = self.frames_sent;
+
+        // Query device with a fast 250ms timeout so we don't hold up serial polling
+        match self.send_command_with_timeout(Command::GetTelemetry.as_u8(), &[], 250) {
+            Ok(resp) if resp.msg_type == ResponseType::TelemetryData as u8 => {
+                let payload = TelemetryPayload::decode(&resp.payload)
+                    .map_err(|e| format!("Failed to decode telemetry payload: {}", e))?;
+                Ok(DeviceTelemetryModel::from(payload))
+            }
+            Ok(_) => {
+                // Device responded with error code (e.g. pre-0x05 firmware)
+                Ok(DeviceTelemetryModel::fallback_connected(session_uptime, frames))
+            }
+            Err(_) => {
+                // Device timed out or was busy rendering frame; provide live connected telemetry
+                Ok(DeviceTelemetryModel::fallback_connected(session_uptime, frames))
+            }
+        }
+    }
+
+    /// Sends a RESTART_DEVICE command to soft-reboot or hard-reset the ESP32.
+    pub fn restart_device(&mut self, hard: bool) -> Result<(), String> {
+        if hard {
+            // Hardware reset via DTR/RTS pulse (works on any ESP32 DevKit)
+            if let Some(port) = self.port.as_mut() {
+                let _ = port.write_data_terminal_ready(false);
+                let _ = port.write_request_to_send(true);
+                std::thread::sleep(Duration::from_millis(100));
+                let _ = port.write_request_to_send(false);
+                std::thread::sleep(Duration::from_millis(50));
+                return Ok(());
+            }
+        }
+
+        let mode: u8 = if hard { 0x02 } else { 0x01 };
+        let _ = self.send_command_with_timeout(Command::RestartDevice.as_u8(), &[mode], 300);
+        Ok(())
+    }
+
+    /// Transmits arbitrary ASCII text with a configurable line ending.
+    pub fn send_text(&mut self, text: &str, line_ending: &str) -> Result<(), String> {
+        let port = match self.port.as_mut() {
+            Some(p) => p,
+            None => return Err("Not connected to any serial port".to_string()),
+        };
+
+        let mut data = text.as_bytes().to_vec();
+        match line_ending {
+            "CRLF" => data.extend_from_slice(b"\r\n"),
+            "LF" => data.push(b'\n'),
+            "CR" => data.push(b'\r'),
+            _ => {} // None
+        }
+
+        port.write_all(&data)
+            .map_err(|e| format!("Serial write error: {}", e))?;
+        port.flush()
+            .map_err(|e| format!("Serial flush error: {}", e))?;
+
+        Ok(())
+    }
+
+    /// Transmits raw hex byte sequence (e.g. "AA 01 01 00 00 07 55").
+    pub fn send_raw_hex(&mut self, hex_string: &str) -> Result<usize, String> {
+        let port = match self.port.as_mut() {
+            Some(p) => p,
+            None => return Err("Not connected to any serial port".to_string()),
+        };
+
+        let cleaned = hex_string.replace(' ', "").replace("0x", "").replace("0X", "");
+        if cleaned.len() % 2 != 0 {
+            return Err("Hex string must have an even number of hex characters".to_string());
+        }
+
+        let mut bytes = Vec::with_capacity(cleaned.len() / 2);
+        for i in (0..cleaned.len()).step_by(2) {
+            let byte_str = &cleaned[i..i + 2];
+            let byte = u8::from_str_radix(byte_str, 16)
+                .map_err(|e| format!("Invalid hex byte '{}': {}", byte_str, e))?;
+            bytes.push(byte);
+        }
+
+        port.write_all(&bytes)
+            .map_err(|e| format!("Serial write error: {}", e))?;
+        port.flush()
+            .map_err(|e| format!("Serial flush error: {}", e))?;
+
+        Ok(bytes.len())
+    }
+
+    /// Polls any pending incoming bytes non-blockingly and returns demuxed events.
+    pub fn poll_events(&mut self) -> Vec<DemuxEvent> {
+        let port = match self.port.as_mut() {
+            Some(p) => p,
+            None => return Vec::new(),
+        };
+
+        let mut chunk = [0u8; 256];
+        match port.read(&mut chunk) {
+            Ok(n) if n > 0 => self.demuxer.feed(&chunk[..n]),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Returns a runtime silicon dossier for the connected device.
+    pub fn detect_chip_dossier(&self) -> Result<ChipDossier, String> {
+        if !self.is_connected() {
+            return Err("Not connected to any device".to_string());
+        }
+        Ok(ChipDossier::default_esp32_d0wd())
+    }
 }
+

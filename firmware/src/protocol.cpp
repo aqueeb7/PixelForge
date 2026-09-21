@@ -171,6 +171,48 @@ void ProtocolHandler::sendClearAck(uint8_t status) {
     sendPacket(RESP_CLEAR_ACK, &status, 1);
 }
 
+void ProtocolHandler::sendTelemetry(uint32_t freeHeap, uint32_t minFreeHeap, uint32_t totalHeap,
+                                    uint32_t uptimeSec, uint16_t fpsX10, uint8_t contrast,
+                                    uint8_t wifiStatus, uint32_t frameCounter) {
+    uint8_t payload[24];
+    payload[0] = (freeHeap >> 24) & 0xFF;
+    payload[1] = (freeHeap >> 16) & 0xFF;
+    payload[2] = (freeHeap >> 8) & 0xFF;
+    payload[3] = freeHeap & 0xFF;
+
+    payload[4] = (minFreeHeap >> 24) & 0xFF;
+    payload[5] = (minFreeHeap >> 16) & 0xFF;
+    payload[6] = (minFreeHeap >> 8) & 0xFF;
+    payload[7] = minFreeHeap & 0xFF;
+
+    payload[8] = (totalHeap >> 24) & 0xFF;
+    payload[9] = (totalHeap >> 16) & 0xFF;
+    payload[10] = (totalHeap >> 8) & 0xFF;
+    payload[11] = totalHeap & 0xFF;
+
+    payload[12] = (uptimeSec >> 24) & 0xFF;
+    payload[13] = (uptimeSec >> 16) & 0xFF;
+    payload[14] = (uptimeSec >> 8) & 0xFF;
+    payload[15] = uptimeSec & 0xFF;
+
+    payload[16] = (fpsX10 >> 8) & 0xFF;
+    payload[17] = fpsX10 & 0xFF;
+
+    payload[18] = contrast;
+    payload[19] = wifiStatus;
+
+    payload[20] = (frameCounter >> 24) & 0xFF;
+    payload[21] = (frameCounter >> 16) & 0xFF;
+    payload[22] = (frameCounter >> 8) & 0xFF;
+    payload[23] = frameCounter & 0xFF;
+
+    sendPacket(RESP_TELEMETRY_DATA, payload, 24);
+}
+
+void ProtocolHandler::sendRestartAck(uint8_t status) {
+    sendPacket(RESP_RESTART_ACK, &status, 1);
+}
+
 void ProtocolHandler::sendError(uint8_t errCode, const char* errMsg) {
     size_t msgLen = strlen(errMsg);
     uint8_t buf[128];

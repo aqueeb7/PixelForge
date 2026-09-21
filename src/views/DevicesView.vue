@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useDeviceStore } from '../stores/device'
-import OledPreview from '../components/OledPreview.vue'
+import OledDeviceCard from '../components/monitor/OledDeviceCard.vue'
+import MemoryGauges from '../components/monitor/MemoryGauges.vue'
+import DeviceDossier from '../components/monitor/DeviceDossier.vue'
+import SerialTerminal from '../components/monitor/SerialTerminal.vue'
+import PacketInspector from '../components/monitor/PacketInspector.vue'
+import FirmwareFlasher from '../components/monitor/FirmwareFlasher.vue'
 
 const deviceStore = useDeviceStore()
+const activeTab = ref<'diagnostics' | 'terminal' | 'flasher'>('diagnostics')
 
 onMounted(async () => {
   await deviceStore.refreshPorts()
@@ -23,207 +29,158 @@ function handleToggleConnect() {
 
 <template>
   <div class="devices-view">
-    <div class="header-section">
-      <div class="header-badge">Spec 002 • USB Serial Link</div>
-      <h1 class="page-title">ESP32 Device Manager</h1>
-      <p class="page-subtitle">
-        Connect to your ESP32 over USB Serial at 115200 baud to query device info, clear screen, and transmit 128×64 canonical bitmaps to your 1.3″ I2C OLED display.
-      </p>
-    </div>
+    <!-- Top Action & Connection Toolbar (Fixed 48px matching DrawView/HardwareView) -->
+    <header class="device-toolbar">
+      <div class="toolbar-group">
+        <span class="toolbar-icon">🔌</span>
+        <h2 class="toolbar-title">Device & Diagnostics</h2>
+        <span class="toolbar-badge">Spec 005</span>
+      </div>
 
-    <!-- Error Banner -->
-    <div v-if="deviceStore.errorMessage" class="error-banner" role="alert">
+      <!-- Center Connection Controls -->
+      <div class="toolbar-group toolbar-center">
+        <!-- Port Selector -->
+        <div class="port-selector-wrapper">
+          <select
+            id="port-select"
+            v-model="deviceStore.selectedPort"
+            class="port-select font-mono"
+            :disabled="deviceStore.status === 'connected' || deviceStore.status === 'connecting'"
+          >
+            <option v-if="deviceStore.ports.length === 0" value="" disabled>
+              No serial ports detected
+            </option>
+            <option
+              v-for="p in deviceStore.ports"
+              :key="p.port_name"
+              :value="p.port_name"
+            >
+              {{ p.port_name }} ({{ p.port_type }})
+            </option>
+          </select>
+          <button
+            class="btn-refresh"
+            title="Scan available COM ports"
+            :disabled="deviceStore.status === 'connecting'"
+            @click="deviceStore.refreshPorts"
+          >
+            🔄
+          </button>
+        </div>
+
+        <!-- Baud Rate Selector -->
+        <div class="baud-selector-wrapper">
+          <select
+            v-model.number="deviceStore.baudRate"
+            class="baud-select font-mono"
+            :disabled="deviceStore.status === 'connected'"
+          >
+            <option :value="115200">115200</option>
+            <option :value="460800">460800</option>
+            <option :value="921600">921600</option>
+          </select>
+        </div>
+
+        <!-- Connect / Disconnect Button -->
+        <button
+          class="btn-connect"
+          :class="{
+            'btn-connect--connected': deviceStore.status === 'connected',
+            'btn-connect--connecting': deviceStore.status === 'connecting',
+          }"
+          :disabled="!deviceStore.selectedPort || deviceStore.status === 'connecting'"
+          @click="handleToggleConnect"
+        >
+          <span v-if="deviceStore.status === 'connecting'">Connecting…</span>
+          <span v-else-if="deviceStore.status === 'connected'">Disconnect</span>
+          <span v-else>Connect</span>
+        </button>
+
+        <!-- Ping Quick Action -->
+        <button
+          v-if="deviceStore.status === 'connected'"
+          class="btn-ping"
+          title="Send PING packet (0x01)"
+          @click="deviceStore.ping"
+        >
+          Ping <span v-if="deviceStore.lastPingLatency !== null" class="latency font-mono">{{ deviceStore.lastPingLatency }}ms</span>
+        </button>
+      </div>
+
+      <!-- Tab Switchers (Right Side) -->
+      <div class="toolbar-group toolbar-tabs">
+        <button
+          class="tab-btn"
+          :class="{ 'tab-btn--active': activeTab === 'diagnostics' }"
+          @click="activeTab = 'diagnostics'"
+        >
+          📊 Diagnostics
+        </button>
+        <button
+          class="tab-btn"
+          :class="{ 'tab-btn--active': activeTab === 'terminal' }"
+          @click="activeTab = 'terminal'"
+        >
+          📟 Terminal & Packets
+        </button>
+        <button
+          class="tab-btn"
+          :class="{ 'tab-btn--active': activeTab === 'flasher' }"
+          @click="activeTab = 'flasher'"
+        >
+          ⚡ Flasher
+        </button>
+      </div>
+    </header>
+
+    <!-- Error Banner (if error present) -->
+    <div v-if="deviceStore.errorMessage" class="error-banner">
       <span class="error-icon">⚠️</span>
-      <div class="error-text">
-        <strong>Serial Error:</strong> {{ deviceStore.errorMessage }}
-      </div>
+      <span class="error-text font-mono">{{ deviceStore.errorMessage }}</span>
+      <button class="btn-dismiss-error" @click="deviceStore.errorMessage = null">✕</button>
     </div>
 
-    <div class="main-grid">
-      <!-- Left Column: Serial Controls & Device Info -->
-      <div class="controls-column">
-        <!-- Port Selection Card -->
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Serial Port Configuration</span>
-            <button
-              class="btn-icon"
-              title="Refresh Ports"
-              @click="deviceStore.refreshPorts"
-              :disabled="deviceStore.status === 'connecting'"
-            >
-              🔄
-            </button>
-          </div>
+    <!-- Main Tab View Content (Fixed height, internal scroll only) -->
+    <div class="workspace-area">
+      <!-- TAB 1: Diagnostics & Gauges -->
+      <div v-if="activeTab === 'diagnostics'" class="tab-pane diagnostics-grid">
+        <!-- Left Column: Attached Devices & Peripherals Rack -->
+        <div class="pane-column left-pane">
+          <!-- Device #0: ESP32 MCU Dossier -->
+          <DeviceDossier />
 
-          <div class="form-group">
-            <label class="form-label" for="port-select">Target COM Port</label>
-            <div class="select-wrapper">
-              <select
-                id="port-select"
-                v-model="deviceStore.selectedPort"
-                class="form-select"
-                :disabled="deviceStore.status === 'connected' || deviceStore.status === 'connecting'"
-              >
-                <option v-if="deviceStore.ports.length === 0" value="" disabled>
-                  No serial ports detected
-                </option>
-                <option
-                  v-for="p in deviceStore.ports"
-                  :key="p.port_name"
-                  :value="p.port_name"
-                >
-                  {{ p.port_name }} ({{ p.port_type }})
-                </option>
-              </select>
+          <!-- Device #1: OLED Display Peripheral Component -->
+          <OledDeviceCard />
+
+          <!-- Add Peripheral Device Rack Slot -->
+          <router-link to="/hardware" class="add-device-slot" title="Open Hardware Lab to configure more peripherals">
+            <span class="plus-icon">⊕</span>
+            <div class="slot-text">
+              <span class="slot-title">Add Peripheral Component</span>
+              <span class="slot-desc">Attach buttons, rotary encoders, or sensors to I²C/GPIO bus</span>
             </div>
-          </div>
-
-          <div class="connection-actions">
-            <button
-              class="btn"
-              :class="{
-                'btn--primary': deviceStore.status !== 'connected',
-                'btn--danger': deviceStore.status === 'connected',
-                'btn--loading': deviceStore.status === 'connecting'
-              }"
-              :disabled="!deviceStore.selectedPort || deviceStore.status === 'connecting'"
-              @click="handleToggleConnect"
-            >
-              <span v-if="deviceStore.status === 'connecting'">Connecting…</span>
-              <span v-else-if="deviceStore.status === 'connected'">Disconnect Device</span>
-              <span v-else>Connect via Serial</span>
-            </button>
-          </div>
+          </router-link>
         </div>
 
-        <!-- Diagnostics & Actions Card -->
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Hardware Diagnostics</span>
-            <span
-              class="status-indicator"
-              :class="'status-indicator--' + deviceStore.status"
-            >
-              {{ deviceStore.status.toUpperCase() }}
-            </span>
-          </div>
-
-          <div class="actions-grid">
-            <button
-              class="btn btn--secondary"
-              :disabled="deviceStore.status !== 'connected'"
-              @click="deviceStore.ping"
-            >
-              <span class="btn-glyph">📡</span>
-              <span>Send PING</span>
-              <span v-if="deviceStore.lastPingLatency !== null" class="latency-pill">
-                {{ deviceStore.lastPingLatency }} ms
-              </span>
-            </button>
-
-            <button
-              class="btn btn--secondary"
-              :disabled="deviceStore.status !== 'connected'"
-              @click="deviceStore.clear"
-            >
-              <span class="btn-glyph">🧹</span>
-              <span>Clear Screen</span>
-            </button>
-
-            <button
-              class="btn btn--accent"
-              @click="deviceStore.sendTestPattern"
-            >
-              <span class="btn-glyph">🏁</span>
-              <span>Send Test Pattern</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Connected Device Capabilities -->
-        <div v-if="deviceStore.deviceInfo" class="card card--info">
-          <div class="card-header">
-            <span class="card-title">Device Capabilities</span>
-            <span class="verified-badge">✓ Compatible</span>
-          </div>
-
-          <div class="info-grid">
-            <div class="info-row">
-              <span class="info-label">Device Name</span>
-              <span class="info-value">{{ deviceStore.deviceInfo.device_name }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Firmware Version</span>
-              <span class="info-value">v{{ deviceStore.deviceInfo.firmware_version }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Display Resolution</span>
-              <span class="info-value">
-                {{ deviceStore.deviceInfo.display_width }} × {{ deviceStore.deviceInfo.display_height }}
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Color Depth</span>
-              <span class="info-value">{{ deviceStore.deviceInfo.color_depth }}-bit Monochrome</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">OLED Controller</span>
-              <span class="info-value controller-pill">{{ deviceStore.deviceInfo.display_controller }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Protocol Version</span>
-              <span class="info-value">v{{ deviceStore.deviceInfo.protocol_version }}</span>
-            </div>
-          </div>
+        <!-- Right Column: Memory & Real-time Gauges -->
+        <div class="pane-column right-pane">
+          <MemoryGauges />
         </div>
       </div>
 
-      <!-- Right Column: Live OLED Preview & Hardware Wiring Guide -->
-      <div class="preview-column">
-        <div class="card preview-card">
-          <div class="card-header">
-            <span class="card-title">Physical OLED Mirror (128×64)</span>
-            <span class="preview-badge">Canonical 1-bit Buffer</span>
-          </div>
-
-          <div class="preview-stage">
-            <OledPreview :frame-data="deviceStore.activeFrame" />
-          </div>
-
-          <div class="preview-caption">
-            Exact representation of the 1024-byte row-major frame sent to the ESP32. The ESP32 firmware translates this canonical buffer to the physical OLED controller.
-          </div>
+      <!-- TAB 2: Serial Terminal & Packet Inspector -->
+      <div v-else-if="activeTab === 'terminal'" class="tab-pane terminal-grid">
+        <div class="terminal-col">
+          <SerialTerminal />
         </div>
-
-        <!-- Hardware Wiring Reference -->
-        <div class="card wiring-card">
-          <div class="card-header">
-            <span class="card-title">Hardware Profile (Spec 002)</span>
-          </div>
-          <div class="wiring-table">
-            <div class="wire-item">
-              <span class="wire-pin">VCC</span>
-              <span class="wire-arrow">➔</span>
-              <span class="wire-dest">ESP32 3V3</span>
-            </div>
-            <div class="wire-item">
-              <span class="wire-pin">GND</span>
-              <span class="wire-arrow">➔</span>
-              <span class="wire-dest">ESP32 GND</span>
-            </div>
-            <div class="wire-item">
-              <span class="wire-pin">SCL</span>
-              <span class="wire-arrow">➔</span>
-              <span class="wire-dest">GPIO 22</span>
-            </div>
-            <div class="wire-item">
-              <span class="wire-pin">SDA</span>
-              <span class="wire-arrow">➔</span>
-              <span class="wire-dest">GPIO 21</span>
-            </div>
-          </div>
+        <div class="packets-col">
+          <PacketInspector />
         </div>
+      </div>
+
+      <!-- TAB 3: Firmware Flasher -->
+      <div v-else-if="activeTab === 'flasher'" class="tab-pane flasher-pane">
+        <FirmwareFlasher />
       </div>
     </div>
   </div>
@@ -232,349 +189,336 @@ function handleToggleConnect() {
 <style scoped>
 .devices-view {
   flex: 1;
-  padding: 2rem 2.5rem;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  height: 100%;
+  width: 100%;
+  overflow: hidden; /* No outer scrollbars */
   background-color: var(--color-bg-base);
 }
 
-.header-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.header-badge {
-  align-self: flex-start;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-accent);
-  background: var(--color-accent-dim);
-  padding: 0.2rem 0.6rem;
-  border-radius: 99px;
-  border: 1px solid rgba(124, 111, 255, 0.3);
-}
-
-.page-title {
-  font-size: 1.85rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  letter-spacing: -0.02em;
-}
-
-.page-subtitle {
-  font-size: 0.88rem;
-  color: var(--color-text-secondary);
-  max-width: 820px;
-  line-height: 1.5;
-}
-
-.error-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  color: #fca5a5;
-  font-size: 0.85rem;
-}
-
-.main-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.25fr;
-  gap: 1.5rem;
-  align-items: start;
-}
-
-@media (max-width: 1024px) {
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.controls-column,
-.preview-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.card {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 1.25rem 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.card-header {
+/* Top Toolbar */
+.device-toolbar {
+  height: 48px;
+  min-height: 48px;
+  background-color: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 1rem;
+  gap: 1rem;
+  z-index: 10;
+  flex-shrink: 0;
 }
 
-.card-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.form-group {
+.toolbar-group {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.form-label {
-  font-size: 0.75rem;
+.toolbar-icon {
+  font-size: 1.1rem;
+}
+
+.toolbar-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.toolbar-badge {
+  font-size: 0.65rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
+  color: var(--color-accent);
+  background: var(--color-accent-dim);
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(124, 111, 255, 0.25);
 }
 
-.form-select {
-  width: 100%;
+/* Center Connection Controls */
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.port-selector-wrapper {
+  display: flex;
+  align-items: center;
   background: var(--color-bg-base);
   border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.port-select {
+  background: transparent;
+  border: none;
   color: var(--color-text-primary);
-  padding: 0.6rem 0.85rem;
-  border-radius: 8px;
-  font-size: 0.88rem;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.5rem;
   outline: none;
-  transition: border-color 0.15s;
+  max-width: 220px;
 }
 
-.form-select:focus {
-  border-color: var(--color-accent);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.65rem 1.25rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
+.btn-refresh {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  padding: 0.25rem 0.45rem;
   cursor: pointer;
-  border: 1px solid transparent;
+  font-size: 0.75rem;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.baud-select {
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  outline: none;
+}
+
+.btn-connect {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-accent);
+  color: white;
+  cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn--primary {
-  background: var(--color-accent);
-  color: white;
-}
-
-.btn--primary:hover:not(:disabled) {
+.btn-connect:hover:not(:disabled) {
   background: var(--color-accent-hover);
 }
 
-.btn--danger {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #fca5a5;
+.btn-connect--connected {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
 }
 
-.btn--danger:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.35);
+.btn-connect--connected:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.28);
 }
 
-.btn--secondary {
+.btn-connect:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-ping {
   background: var(--color-bg-base);
-  border-color: var(--color-border);
-  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
 }
 
-.btn--secondary:hover:not(:disabled) {
-  background: var(--color-bg-elevated);
+.btn-ping:hover {
+  color: var(--color-text-primary);
   border-color: var(--color-accent);
 }
 
-.btn--accent {
-  background: rgba(124, 111, 255, 0.15);
-  border-color: rgba(124, 111, 255, 0.4);
-  color: #c4b5fd;
+.latency {
+  color: #34d399;
+  font-size: 0.7rem;
 }
 
-.btn--accent:hover:not(:disabled) {
-  background: rgba(124, 111, 255, 0.25);
+/* Tabs */
+.toolbar-tabs {
+  margin-left: auto;
+  gap: 0.35rem;
 }
 
-.btn-icon {
-  background: none;
-  border: 1px solid var(--color-border-subtle);
+.tab-btn {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
   border-radius: 6px;
-  color: var(--color-text-secondary);
-  padding: 0.3rem 0.5rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
   cursor: pointer;
-  font-size: 0.85rem;
   transition: all 0.15s ease;
 }
 
-.btn-icon:hover:not(:disabled) {
-  border-color: var(--color-accent);
+.tab-btn:hover {
+  color: var(--color-text-primary);
   background: var(--color-bg-elevated);
 }
 
-.actions-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.65rem;
-}
-
-.latency-pill {
-  margin-left: auto;
-  font-size: 0.72rem;
-  font-family: monospace;
-  background: rgba(16, 185, 129, 0.15);
-  color: #6ee7b7;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  padding: 0.15rem 0.45rem;
-  border-radius: 4px;
-}
-
-.status-indicator {
-  font-size: 0.68rem;
+.tab-btn--active {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+  color: var(--color-accent-hover);
   font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
 }
 
-.status-indicator--connected {
-  background: rgba(16, 185, 129, 0.15);
-  color: #6ee7b7;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.status-indicator--disconnected {
-  background: rgba(100, 116, 139, 0.15);
-  color: #94a3b8;
-  border: 1px solid rgba(100, 116, 139, 0.3);
-}
-
-.status-indicator--connecting {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fcd34d;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.status-indicator--error {
-  background: rgba(239, 68, 68, 0.15);
+/* Error Banner */
+.error-banner {
+  background: rgba(239, 68, 68, 0.12);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.3);
   color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.info-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.82rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-  padding-bottom: 0.45rem;
-}
-
-.info-label {
-  color: var(--color-text-secondary);
-}
-
-.info-value {
-  font-family: monospace;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.controller-pill {
-  background: rgba(56, 189, 248, 0.15);
-  color: #7dd3fc;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-}
-
-.verified-badge {
-  font-size: 0.72rem;
-  color: #6ee7b7;
-  font-weight: 600;
-}
-
-.preview-card {
-  align-items: center;
-}
-
-.preview-stage {
-  padding: 1rem 0;
-  display: flex;
-  justify-content: center;
-  width: 100%;
-}
-
-.preview-caption {
+  padding: 0.35rem 1rem;
   font-size: 0.75rem;
-  color: var(--color-text-muted);
-  text-align: center;
-  line-height: 1.45;
-  max-width: 480px;
-}
-
-.preview-badge {
-  font-size: 0.68rem;
-  font-family: monospace;
-  color: var(--color-accent);
-}
-
-.wiring-table {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
-.wire-item {
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 6px;
-  padding: 0.5rem;
+.btn-dismiss-error {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #f87171;
+  cursor: pointer;
+}
+
+/* Workspace Area */
+.workspace-area {
+  flex: 1;
+  min-height: 0; /* Crucial for inner scrollable containers */
+  padding: 0.75rem 1rem;
+  overflow: hidden;
+}
+
+.tab-pane {
+  height: 100%;
+  min-height: 0;
+}
+
+/* Tab 1: Diagnostics Grid (370px component rack + 1fr telemetry) */
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: 370px 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 1.25rem;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pane-column {
   display: flex;
   flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.pane-column::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pane-column::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pane-column::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.pane-column::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-subtle);
+}
+
+/* Add Peripheral Device Rack Slot */
+.add-device-slot {
+  display: flex;
   align-items: center;
-  gap: 0.2rem;
-  font-size: 0.75rem;
-  font-family: monospace;
-}
-
-.wire-pin {
-  font-weight: 700;
-  color: #38bdf8;
-}
-
-.wire-arrow {
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.015);
   color: var(--color-text-muted);
-  font-size: 0.65rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.wire-dest {
+.add-device-slot:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-dim);
+  color: var(--color-accent-hover);
+}
+
+.add-device-slot .plus-icon {
+  font-size: 1.25rem;
+  color: var(--color-accent);
+  line-height: 1;
+}
+
+.slot-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.slot-title {
+  font-size: 0.78rem;
+  font-weight: 700;
   color: var(--color-text-primary);
+}
+
+.add-device-slot:hover .slot-title {
+  color: var(--color-accent-hover);
+}
+
+.slot-desc {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
+
+/* Tab 2: Terminal Grid */
+.terminal-grid {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 1rem;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.terminal-col,
+.packets-col {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Tab 3: Flasher Pane */
+.flasher-pane {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.font-mono {
+  font-family: monospace;
 }
 </style>

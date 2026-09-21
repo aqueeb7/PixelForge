@@ -15,6 +15,8 @@ pub enum Command {
     GetDeviceInfo = 0x02,
     SendFrame = 0x03,
     ClearDisplay = 0x04,
+    GetTelemetry = 0x05,
+    RestartDevice = 0x06,
 }
 
 impl Command {
@@ -30,6 +32,8 @@ pub enum ResponseType {
     DeviceInfo = 0x82,
     FrameAck = 0x83,
     ClearAck = 0x84,
+    TelemetryData = 0x85,
+    RestartAck = 0x86,
     Error = 0xFF,
 }
 
@@ -40,6 +44,8 @@ impl ResponseType {
             0x82 => Some(ResponseType::DeviceInfo),
             0x83 => Some(ResponseType::FrameAck),
             0x84 => Some(ResponseType::ClearAck),
+            0x85 => Some(ResponseType::TelemetryData),
+            0x86 => Some(ResponseType::RestartAck),
             0xFF => Some(ResponseType::Error),
             _ => None,
         }
@@ -55,6 +61,60 @@ pub struct DeviceInfo {
     pub display_height: u16,
     pub color_depth: u8,
     pub display_controller: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TelemetryPayload {
+    pub free_heap: u32,
+    pub min_free_heap: u32,
+    pub total_heap: u32,
+    pub uptime_seconds: u32,
+    pub current_fps: u16,      // Fixed-point x10 (e.g. 300 = 30.0 fps)
+    pub oled_contrast: u8,    // 0-255
+    pub wifi_status: u8,      // 0 = off, 1 = connecting, 2 = connected
+    pub frame_counter: u32,
+}
+
+pub const TELEMETRY_PAYLOAD_SIZE: usize = 24;
+
+impl TelemetryPayload {
+    pub fn encode(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(TELEMETRY_PAYLOAD_SIZE);
+        buf.extend_from_slice(&self.free_heap.to_be_bytes());
+        buf.extend_from_slice(&self.min_free_heap.to_be_bytes());
+        buf.extend_from_slice(&self.total_heap.to_be_bytes());
+        buf.extend_from_slice(&self.uptime_seconds.to_be_bytes());
+        buf.extend_from_slice(&self.current_fps.to_be_bytes());
+        buf.push(self.oled_contrast);
+        buf.push(self.wifi_status);
+        buf.extend_from_slice(&self.frame_counter.to_be_bytes());
+        buf
+    }
+
+    pub fn decode(payload: &[u8]) -> Result<Self, ProtocolError> {
+        if payload.len() < TELEMETRY_PAYLOAD_SIZE {
+            return Err(ProtocolError::Incomplete);
+        }
+        let free_heap = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
+        let min_free_heap = u32::from_be_bytes([payload[4], payload[5], payload[6], payload[7]]);
+        let total_heap = u32::from_be_bytes([payload[8], payload[9], payload[10], payload[11]]);
+        let uptime_seconds = u32::from_be_bytes([payload[12], payload[13], payload[14], payload[15]]);
+        let current_fps = u16::from_be_bytes([payload[16], payload[17]]);
+        let oled_contrast = payload[18];
+        let wifi_status = payload[19];
+        let frame_counter = u32::from_be_bytes([payload[20], payload[21], payload[22], payload[23]]);
+
+        Ok(Self {
+            free_heap,
+            min_free_heap,
+            total_heap,
+            uptime_seconds,
+            current_fps,
+            oled_contrast,
+            wifi_status,
+            frame_counter,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -260,5 +320,26 @@ mod tests {
         let partial = &encoded[..4];
         let res = decode_packet(partial);
         assert_eq!(res, Err(ProtocolError::Incomplete));
+    }
+
+    #[test]
+    fn test_telemetry_payload_encode_decode() {
+        let telemetry = TelemetryPayload {
+            free_heap: 245120,
+            min_free_heap: 198400,
+            total_heap: 327680,
+            uptime_seconds: 3600,
+            current_fps: 300, // 30.0 fps
+            oled_contrast: 255,
+            wifi_status: 2,
+            frame_counter: 108000,
+        };
+
+        let encoded = telemetry.encode();
+        assert_eq!(encoded.len(), TELEMETRY_PAYLOAD_SIZE);
+        assert_eq!(encoded.len(), 24);
+
+        let decoded = TelemetryPayload::decode(&encoded).expect("Should decode telemetry");
+        assert_eq!(decoded, telemetry);
     }
 }
