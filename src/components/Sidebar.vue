@@ -14,8 +14,7 @@ interface NavEntry {
 const navItems: NavEntry[] = [
   { name: 'home',      label: 'Home',         to: '/',          icon: 'home' },
   { name: 'draw',      label: 'Draw',         to: '/draw',      icon: 'pencil' },
-  { name: 'devices',   label: 'Devices',      to: '/devices',   icon: 'cpu' },
-  { name: 'hardware',  label: 'Hardware Lab', to: '/hardware',  icon: 'lab' },
+  { name: 'hardware',  label: 'Hardware',     to: '/hardware',  icon: 'cpu' },
   { name: 'video',     label: 'Video',        to: '/video',     icon: 'film' },
   { name: 'animation', label: 'Animation',    to: '/animation', icon: 'play' },
   { name: 'projects',  label: 'Projects',     to: '/projects',  icon: 'folder' },

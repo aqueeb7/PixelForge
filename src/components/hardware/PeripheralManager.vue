@@ -196,6 +196,8 @@ function handlePresetSelect(type: PeripheralType, name: string) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  min-height: fit-content;
 }
 
 .card-header {

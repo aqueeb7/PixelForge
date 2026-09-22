@@ -593,4 +593,30 @@ export const DEFAULT_HARDWARE_CONFIG: HardwareConfig = {
       status: 'configured',
     },
   ],
+  connections: [
+    {
+      id: 'conn-oled-vcc',
+      source: { componentId: 'oled-display-primary', pinId: 'VCC' },
+      target: { componentId: 'esp32-mcu', pinId: '3V3' },
+      signal: 'POWER_3V3',
+    },
+    {
+      id: 'conn-oled-gnd',
+      source: { componentId: 'oled-display-primary', pinId: 'GND' },
+      target: { componentId: 'esp32-mcu', pinId: 'GND' },
+      signal: 'GND',
+    },
+    {
+      id: 'conn-oled-sda',
+      source: { componentId: 'oled-display-primary', pinId: 'SDA' },
+      target: { componentId: 'esp32-mcu', pinId: 'D21 (SDA)' },
+      signal: 'I2C_SDA',
+    },
+    {
+      id: 'conn-oled-scl',
+      source: { componentId: 'oled-display-primary', pinId: 'SCL' },
+      target: { componentId: 'esp32-mcu', pinId: 'D22 (SCL)' },
+      signal: 'I2C_SCL',
+    },
+  ],
 }

@@ -62,9 +62,7 @@ function formatMb(bytes?: number): string {
       </div>
       <div class="carrier-meta">
         <span class="carrier-badge font-mono">{{ board.pin_count }}P</span>
-        <router-link to="/hardware" class="link-edit-carrier" title="Open Hardware Lab">
-          Edit ↗
-        </router-link>
+        <span class="carrier-chip-tag font-mono">{{ board.chip_family }}</span>
       </div>
     </div>
 
@@ -132,6 +130,8 @@ function formatMb(bytes?: number): string {
   gap: 0.65rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   transition: border-color 0.2s ease;
+  flex-shrink: 0;
+  min-height: fit-content;
 }
 
 .physical-device-card.device--active {
@@ -296,16 +296,14 @@ function formatMb(bytes?: number): string {
   border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
-.link-edit-carrier {
-  font-size: 0.68rem;
+.carrier-chip-tag {
+  font-size: 0.62rem;
   font-weight: 600;
-  color: var(--color-accent);
-  text-decoration: none;
-}
-
-.link-edit-carrier:hover {
-  text-decoration: underline;
-  color: var(--color-accent-hover);
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Disconnected Notice */

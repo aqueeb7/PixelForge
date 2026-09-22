@@ -13,18 +13,46 @@ const oledPeripheral = computed(() => {
   return hardwareStore.peripherals.find(
     (p) => p.type === 'OLED_128X64_I2C' || p.id.includes('oled')
   ) || {
-    id: 'oled-primary',
+    id: 'oled-display-primary',
     name: '1.3" Monochrome OLED',
     controller: 'SH1106 / SSD1306',
     i2c_address: '0x3C',
     pins: {
       GND: 'GND',
       VCC: '3V3',
-      SCL: 'GPIO 22',
-      SDA: 'GPIO 21',
+      SCL: 'D22 (SCL)',
+      SDA: 'D21 (SDA)',
     },
   }
 })
+
+// Net-based connection highlighting
+const isCardNetHighlighted = computed(() => {
+  const compId = oledPeripheral.value.id
+  return hardwareStore.highlightedEndpoints.has(compId)
+})
+
+function isPinNetHighlighted(pinKey: string) {
+  const compId = oledPeripheral.value.id
+  const pinSet = hardwareStore.highlightedEndpoints.get(compId)
+  return pinSet ? pinSet.has(pinKey) : false
+}
+
+function handleCardMouseEnter() {
+  hardwareStore.setHoveredEndpoint(oledPeripheral.value.id)
+}
+
+function handleCardMouseLeave() {
+  hardwareStore.clearHoveredEndpoint()
+}
+
+function handlePinMouseEnter(pinKey: string) {
+  hardwareStore.setHoveredEndpoint(oledPeripheral.value.id, pinKey)
+}
+
+function handlePinMouseLeave() {
+  hardwareStore.setHoveredEndpoint(oledPeripheral.value.id)
+}
 
 const isConnected = computed(() => deviceStore.status === 'connected')
 const activeFrame = computed(() => deviceStore.activeFrame)
@@ -88,7 +116,15 @@ onMounted(() => {
 
 <template>
   <!-- Physical Component Chassis / PCB Card -->
-  <div class="physical-device-card" :class="{ 'device--active': isConnected }">
+  <div
+    class="physical-device-card"
+    :class="{
+      'device--active': isConnected,
+      'device--net-highlighted': isCardNetHighlighted,
+    }"
+    @mouseenter="handleCardMouseEnter"
+    @mouseleave="handleCardMouseLeave"
+  >
     <!-- Corner Brass Mounting Vias -->
     <div class="mounting-hole top-left" title="M2 Mounting Via" />
     <div class="mounting-hole top-right" title="M2 Mounting Via" />
@@ -119,21 +155,41 @@ onMounted(() => {
 
     <!-- Integrated Pin Drive Header Strip -->
     <div class="pin-drive-strip font-mono">
-      <div class="pin-cell">
+      <div
+        class="pin-cell"
+        :class="{ 'pin-cell--net-highlighted': isPinNetHighlighted('GND') }"
+        @mouseenter.stop="handlePinMouseEnter('GND')"
+        @mouseleave.stop="handlePinMouseLeave"
+      >
         <span class="pin-name gnd">GND</span>
         <span class="pin-wire">{{ oledPeripheral.pins?.GND || 'GND' }}</span>
       </div>
-      <div class="pin-cell">
+      <div
+        class="pin-cell"
+        :class="{ 'pin-cell--net-highlighted': isPinNetHighlighted('VCC') }"
+        @mouseenter.stop="handlePinMouseEnter('VCC')"
+        @mouseleave.stop="handlePinMouseLeave"
+      >
         <span class="pin-name vcc">VCC</span>
         <span class="pin-wire">{{ oledPeripheral.pins?.VCC || '3V3' }}</span>
       </div>
-      <div class="pin-cell">
+      <div
+        class="pin-cell"
+        :class="{ 'pin-cell--net-highlighted': isPinNetHighlighted('SCL') }"
+        @mouseenter.stop="handlePinMouseEnter('SCL')"
+        @mouseleave.stop="handlePinMouseLeave"
+      >
         <span class="pin-name scl">SCL</span>
-        <span class="pin-wire">{{ oledPeripheral.pins?.SCL || 'GPIO 22' }}</span>
+        <span class="pin-wire">{{ oledPeripheral.pins?.SCL || 'D22' }}</span>
       </div>
-      <div class="pin-cell">
+      <div
+        class="pin-cell"
+        :class="{ 'pin-cell--net-highlighted': isPinNetHighlighted('SDA') }"
+        @mouseenter.stop="handlePinMouseEnter('SDA')"
+        @mouseleave.stop="handlePinMouseLeave"
+      >
         <span class="pin-name sda">SDA</span>
-        <span class="pin-wire">{{ oledPeripheral.pins?.SDA || 'GPIO 21' }}</span>
+        <span class="pin-wire">{{ oledPeripheral.pins?.SDA || 'D21' }}</span>
       </div>
     </div>
 
@@ -191,10 +247,17 @@ onMounted(() => {
   gap: 0.65rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   transition: border-color 0.2s ease;
+  flex-shrink: 0;
+  min-height: fit-content;
 }
 
 .physical-device-card.device--active {
   border-color: rgba(56, 189, 248, 0.35);
+}
+
+.physical-device-card.device--net-highlighted {
+  border-color: #38bdf8;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.25), 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 /* Corner Brass Mounting Vias */
@@ -328,6 +391,17 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 1px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pin-cell:hover,
+.pin-cell.pin-cell--net-highlighted {
+  background: rgba(56, 189, 248, 0.18);
+  outline: 1px solid rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
 }
 
 .pin-name {
@@ -360,14 +434,15 @@ onMounted(() => {
 }
 
 .oled-screen {
-  width: 300px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 360px;
   aspect-ratio: 128 / 64;
+  min-height: 140px;
   height: auto;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   border-radius: 2px;
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.25);
   box-shadow: 0 0 16px rgba(56, 189, 248, 0.12);
   background-color: #030509;
 }

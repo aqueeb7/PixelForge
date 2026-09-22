@@ -50,9 +50,19 @@ function formatCapLabel(cap: PinCapability): string {
         <span class="icon">🔍</span>
         <h3 class="card-title">Pin Dossier</h3>
       </div>
-      <span v-if="pin" class="header-indicator">
-        {{ isLeftHeader ? 'Left Header (J1)' : 'Right Header (J2)' }} • Pin #{{ pin.pin_number }}
-      </span>
+      <div class="header-right-meta">
+        <span v-if="pin" class="header-indicator font-mono">
+          {{ isLeftHeader ? 'Left (J1)' : 'Right (J2)' }} • Pin #{{ pin.pin_number }}
+        </span>
+        <button
+          v-if="pin"
+          class="btn-close-pin"
+          title="Close pin dossier"
+          @click="hardwareStore.selectPin(null)"
+        >
+          ✕
+        </button>
+      </div>
     </div>
 
     <!-- Active Pin Selected -->
@@ -163,11 +173,37 @@ function formatCapLabel(cap: PinCapability): string {
 <style scoped>
 .pin-inspector-card {
   background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-accent);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  min-height: fit-content;
+  box-shadow: 0 4px 20px rgba(124, 111, 255, 0.15);
+}
+
+.header-right-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-close-pin {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-close-pin:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 .card-header {

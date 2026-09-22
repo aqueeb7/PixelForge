@@ -1,10 +1,37 @@
-# Spec 005 — Device Diagnostics, Telemetry & Firmware Flasher
+# Spec 005 — Unified Hardware Studio & Device Runtime Engine
 
 ## Inspiration & Architectural Foundation
 
-Derived from the architecture of **ESP32 Monitor** (PySide6/Qt + PySerial + esptool), this specification establishes deep hardware diagnostics, live runtime telemetry, an interactive serial terminal, and an in-app firmware flasher in PixelForge Desktop.
+Derived from the architecture of **ESP32 Monitor** (PySide6/Qt + PySerial + esptool) and unified with **Spec 004**, this specification establishes the **Unified Hardware Studio** at `/hardware`.
 
-Rather than building a standalone ESP32 monitor, Spec 005 is engineered as the **Device Communication & Diagnostics Layer** of the broader PixelForge Hardware Engine. It adheres to strict architectural boundaries so that the forthcoming simulator and multi-board extensions plug in seamlessly.
+In PixelForge, a "device" is not a separate navigation destination—it is an entity inside the project's Hardware context. The Unified Hardware Studio converges physical board visualization, runtime diagnostics, serial demuxing, and flashing into a single cohesive cockpit with zero view hopping.
+
+```text
+                    PIXELFORGE
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+            Draw           Hardware Studio
+                                  │
+                    ┌─────────────┼─────────────┐
+                    │             │             │
+                  Rack         Runtime       Tools
+                 & Wiring      Diagnostics
+                    │             │
+              ┌─────┴─────┐   ┌───┼────┐
+              │           │   │   │    │
+            Board      Peripherals Heap FPS
+              │           │       │
+              └─────┬─────┘   Telemetry
+                    │
+              Connection Graph (Nets)
+                    │
+              hardware.json
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+      Real Hardware       Simulator
+```
 
 ---
 
@@ -13,21 +40,22 @@ Rather than building a standalone ESP32 monitor, Spec 005 is engineered as the *
 PixelForge's hardware system progresses through the following sequential milestones:
 
 ```
-Spec 004: Hardware Definition (Completed)
+Spec 004: Hardware Model & Board Definition (Completed)
           Physical pinouts, strapping constraints, canonical peripheral bindings
        │
        ▼
-Spec 005: Device Diagnostics, Serial & Flasher (Current Milestone)
-          Hardware abstraction, runtime chip inspection, 3-way stream demux,
-          pluggable flasher, generic telemetry, transport decoupled from simulator
+Spec 005: Unified Hardware Studio, Runtime Demux & Net Connection Model (Current Milestone)
+          Hardware as single top-level context, net/connection graph linking,
+          3-way stream demux, pluggable flasher, generic telemetry, 4 unified studio modes
        │
        ▼
-Spec 006: Component & Wiring System
-          Active bus probing (I²C scanner 0x3C), wire netlists, logical signals
+Spec 006: Interactive Wiring & Component Graph Editor
+          Full interactive wire routing canvas, active bus probing (I²C 0x3C scanner),
+          arbitrary multi-peripheral netlist editor expanding on Spec 005's connection model
        │
        ▼
-Spec 007: Hardware Workspace
-          Full schematic/breadboard canvas, live signal animation, multimeter mode
+Spec 007: Hardware Workspace & Multimeter Probing
+          Schematic canvas, live signal animation, logic probing, voltage levels
        │
        ▼
 Spec 008: Virtual ESP32 + Virtual Components
@@ -41,9 +69,52 @@ PixelForge Hardware Simulator
 
 ## Architectural Principles (Lock-Down Rules)
 
-Before writing implementation code for Spec 005, the following 6 core architectural rules must be locked down:
+Before writing implementation code for Spec 005, the following 7 core architectural rules must be locked down:
 
-### 1. Board Definition Consumption (Spec 004 Integration)
+### 1. Single Hardware Context & 4 Unified Modes
+Hardware is the single top-level context at `/hardware` (retiring any separate `/devices` route). The studio provides 4 unified views over the exact same underlying hardware state:
+1. **Rack & Wiring**: ESP32 MCU visual board view, physical component chassis (OLED 128x64 PCB card with live mirror), pin dossier, and peripheral manager.
+2. **Telemetry**: Live dynamic memory allocation, Free Heap watermark gauges, FPS counter, and heap history timeline.
+3. **Serial Console**: Monospace serial terminal and packet demux inspector.
+4. **Flasher**: ESP32 ROM bootloader flash tool with DTR/RTS auto-reset.
+
+### 2. Net & Connection Graph Model (`HardwareConnection`)
+Interactive linking between visual board pins and peripheral components is **net/connection-based**, not derived simply from peripheral IDs:
+```typescript
+type HardwareConnection = {
+  id: string
+  source: {
+    componentId: string
+    pinId: string
+  }
+  target: {
+    componentId: string
+    pinId: string
+  }
+  signal?: string
+}
+```
+Hovering either an MCU board pin or a peripheral card pin/chassis resolves through the connection graph:
+```text
+Hovered Object
+      ↓
+Hardware Connection Graph
+      ↓
+Affected Nets / Pins / Components
+      ↓
+Visual Highlights (illuminated board pin headers + peripheral pin cells)
+```
+This architecture naturally scales to arbitrary multi-peripheral configurations:
+```text
+ESP32
+ ├── GPIO21 ── OLED.SDA
+ ├── GPIO22 ── OLED.SCL
+ ├── GPIO25 ── LED.A
+ ├── GPIO26 ── BUTTON.OUT
+ └── GPIO27 ── SPEAKER.IN
+```
+
+### 3. Board Definition Consumption (Spec 004 Integration)
 Spec 005 does **not** hardcode ESP32 DevKit pin counts or layouts. Instead:
 - It consumes the active `BoardProfile` from **Spec 004** (`useHardwareStore.activeBoard` / `HardwareConfig`).
 - The UI binds incoming telemetry, pin states, and peripheral roles directly to the active profile's pin definitions.

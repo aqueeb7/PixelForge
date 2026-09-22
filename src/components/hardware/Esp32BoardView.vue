@@ -52,6 +52,19 @@ function isPinSelected(pin: PinDefinition): boolean {
 function isPinHovered(pin: PinDefinition): boolean {
   return hardwareStore.hoveredPin?.label === pin.label
 }
+
+function isPinNetHighlighted(pin: PinDefinition): boolean {
+  if (isPinHovered(pin)) return true
+  const labels = hardwareStore.highlightedBoardPinLabels
+  if (!labels || labels.length === 0) return false
+  return labels.some((l) => {
+    if (l === pin.label) return true
+    if (pin.gpio !== null && l.includes(String(pin.gpio))) return true
+    if (pin.label.includes('3V3') && l.includes('3V3')) return true
+    if (pin.label.startsWith('GND') && l === 'GND') return true
+    return false
+  })
+}
 </script>
 
 <template>
@@ -79,6 +92,7 @@ function isPinHovered(pin: PinDefinition): boolean {
             :class="{
               'is-selected': isPinSelected(pin),
               'is-hovered': isPinHovered(pin),
+              'is-net-highlighted': isPinNetHighlighted(pin),
               'has-assignment': getAssignments(pin).length > 0,
             }"
             @click="hardwareStore.selectPin(pin)"
@@ -202,6 +216,7 @@ function isPinHovered(pin: PinDefinition): boolean {
             :class="{
               'is-selected': isPinSelected(pin),
               'is-hovered': isPinHovered(pin),
+              'is-net-highlighted': isPinNetHighlighted(pin),
               'has-assignment': getAssignments(pin).length > 0,
             }"
             @click="hardwareStore.selectPin(pin)"
@@ -378,6 +393,12 @@ function isPinHovered(pin: PinDefinition): boolean {
 .pin-row.has-assignment {
   background: rgba(16, 185, 129, 0.08);
   border-color: rgba(16, 185, 129, 0.3);
+}
+
+.pin-row.is-net-highlighted {
+  border-color: #38bdf8 !important;
+  background: rgba(56, 189, 248, 0.16) !important;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.45) !important;
 }
 
 .pin-label-text {

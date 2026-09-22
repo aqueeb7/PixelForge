@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type {
   BoardProfile,
   HardwareConfig,
+  HardwareConnection,
   PeripheralDevice,
   PinAssignmentInfo,
   PinDefinition,
@@ -15,9 +16,11 @@ export const useHardwareStore = defineStore('hardware', () => {
   const boards = ref<BoardProfile[]>(STANDARD_BOARD_PROFILES)
   const selectedBoardId = ref<string>('esp32-devkit-v1-38p')
   const peripherals = ref<PeripheralDevice[]>(JSON.parse(JSON.stringify(DEFAULT_HARDWARE_CONFIG.peripherals)))
+  const connections = ref<HardwareConnection[]>(JSON.parse(JSON.stringify(DEFAULT_HARDWARE_CONFIG.connections || [])))
   
   const selectedPin = ref<PinDefinition | null>(null)
   const hoveredPin = ref<PinDefinition | null>(null)
+  const hoveredEndpoint = ref<{ componentId: string; pinId?: string } | null>(null)
   const isSaving = ref<boolean>(false)
   const lastSaved = ref<Date | null>(null)
   const errorMessage = ref<string | null>(null)
@@ -90,6 +93,79 @@ export const useHardwareStore = defineStore('hardware', () => {
 
     return map
   })
+
+  // ----------------------------------------------------------------------------
+  // Connection Graph & Bidirectional Linking
+  // ----------------------------------------------------------------------------
+
+  // Find all active connections matching the hovered target or hovered pin
+  const activeConnections = computed<HardwareConnection[]>(() => {
+    const ep = hoveredEndpoint.value
+    if (ep) {
+      return connections.value.filter((conn) => {
+        // Direct component match (e.g. hovered OLED card -> match all 4 pins)
+        if (ep.componentId && !ep.pinId) {
+          return conn.source.componentId === ep.componentId || conn.target.componentId === ep.componentId
+        }
+        // Specific endpoint match (e.g. hovered OLED.SDA -> match only SDA connection)
+        if (ep.componentId && ep.pinId) {
+          const matchSource = conn.source.componentId === ep.componentId && conn.source.pinId === ep.pinId
+          const matchTarget = conn.target.componentId === ep.componentId && conn.target.pinId === ep.pinId
+          return matchSource || matchTarget
+        }
+        return false
+      })
+    }
+
+    // If hovering a board pin on Esp32BoardView
+    if (hoveredPin.value) {
+      const pinLabel = hoveredPin.value.label
+      const gpio = hoveredPin.value.gpio
+      return connections.value.filter((conn) => {
+        const targetPin = conn.target.pinId
+        if (targetPin === pinLabel) return true
+        if (gpio !== null && targetPin.includes(String(gpio))) return true
+        if (pinLabel.includes('3V3') && targetPin.includes('3V3')) return true
+        if (pinLabel.startsWith('GND') && targetPin === 'GND') return true
+        return false
+      })
+    }
+
+    return []
+  })
+
+  // Board pin labels illuminated by the active connections
+  const highlightedBoardPinLabels = computed<string[]>(() => {
+    const labels = new Set<string>()
+    for (const conn of activeConnections.value) {
+      if (conn.target.componentId === 'esp32-mcu') {
+        labels.add(conn.target.pinId)
+      }
+    }
+    return Array.from(labels)
+  })
+
+  // Peripheral endpoints illuminated by the active connections (componentId -> Set of pinIds)
+  const highlightedEndpoints = computed<Map<string, Set<string>>>(() => {
+    const map = new Map<string, Set<string>>()
+    for (const conn of activeConnections.value) {
+      if (conn.source.componentId) {
+        if (!map.has(conn.source.componentId)) {
+          map.set(conn.source.componentId, new Set())
+        }
+        map.get(conn.source.componentId)!.add(conn.source.pinId)
+      }
+    }
+    return map
+  })
+
+  function setHoveredEndpoint(componentId: string, pinId?: string) {
+    hoveredEndpoint.value = { componentId, pinId }
+  }
+
+  function clearHoveredEndpoint() {
+    hoveredEndpoint.value = null
+  }
 
   // Safety Validation Engine
   const validationIssues = computed<ValidationIssue[]>(() => {
@@ -215,6 +291,9 @@ export const useHardwareStore = defineStore('hardware', () => {
         if (config.peripherals && config.peripherals.length > 0) {
           peripherals.value = config.peripherals
         }
+        if (config.connections && config.connections.length > 0) {
+          connections.value = config.connections
+        }
       }
     } catch (e) {
       console.warn('Hardware store init fallback to default:', e)
@@ -259,6 +338,7 @@ export const useHardwareStore = defineStore('hardware', () => {
         board_id: activeBoard.value.id,
         board_name: activeBoard.value.name,
         peripherals: peripherals.value,
+        connections: connections.value,
       }
       await saveHardwareConfig(config)
       lastSaved.value = new Date()
@@ -273,8 +353,10 @@ export const useHardwareStore = defineStore('hardware', () => {
 
   function resetToDefault() {
     peripherals.value = JSON.parse(JSON.stringify(DEFAULT_HARDWARE_CONFIG.peripherals))
+    connections.value = JSON.parse(JSON.stringify(DEFAULT_HARDWARE_CONFIG.connections || []))
     selectedBoardId.value = DEFAULT_HARDWARE_CONFIG.board_id
     selectedPin.value = null
+    hoveredEndpoint.value = null
   }
 
   return {
@@ -283,8 +365,13 @@ export const useHardwareStore = defineStore('hardware', () => {
     activeBoard,
     allPins,
     peripherals,
+    connections,
     selectedPin,
     hoveredPin,
+    hoveredEndpoint,
+    activeConnections,
+    highlightedBoardPinLabels,
+    highlightedEndpoints,
     pinAssignments,
     validationIssues,
     isSaving,
@@ -294,6 +381,8 @@ export const useHardwareStore = defineStore('hardware', () => {
     selectBoard,
     selectPin,
     setHoveredPin,
+    setHoveredEndpoint,
+    clearHoveredEndpoint,
     addPeripheral,
     removePeripheral,
     updatePeripheralPin,

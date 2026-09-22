@@ -64,11 +64,24 @@ export interface PeripheralDevice {
   status: 'configured' | 'verified' | 'conflict' | 'error'
 }
 
+export interface HardwareConnectionEndpoint {
+  componentId: string
+  pinId: string
+}
+
+export interface HardwareConnection {
+  id: string
+  source: HardwareConnectionEndpoint
+  target: HardwareConnectionEndpoint
+  signal?: string
+}
+
 export interface HardwareConfig {
   version: number
   board_id: string
   board_name: string
   peripherals: PeripheralDevice[]
+  connections?: HardwareConnection[]
 }
 
 export interface PinAssignmentInfo {
