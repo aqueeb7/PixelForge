@@ -37,32 +37,30 @@ In PixelForge, a "device" is not a separate navigation destination—it is an en
 
 ## Evolution Roadmap
 
-PixelForge's hardware system progresses through the following sequential milestones:
+PixelForge progresses through the following sequential milestones across its dual-faceted architecture (Face 1: Hardware Cockpit, Face 2: Creative Studio):
 
 ```
 Spec 004: Hardware Model & Board Definition (Completed)
           Physical pinouts, strapping constraints, canonical peripheral bindings
        │
        ▼
-Spec 005: Unified Hardware Studio, Runtime Demux & Net Connection Model (Current Milestone)
-          Hardware as single top-level context, net/connection graph linking,
-          3-way stream demux, pluggable flasher, generic telemetry, 4 unified studio modes
+Spec 005: Unified Hardware Studio, Runtime Demux & Silicon Treemap Telemetry (Completed & Locked)
+          Hardware as single top-level context, 3-way stream demux, pluggable flasher,
+          financial-market style partition/memory treemap heatmap, 4 unified studio modes
        │
        ▼
-Spec 006: Interactive Wiring & Component Graph Editor
-          Full interactive wire routing canvas, active bus probing (I²C 0x3C scanner),
-          arbitrary multi-peripheral netlist editor expanding on Spec 005's connection model
+Spec 006: Video to 128×64 OLED Converter & Multi-Algorithm Dithering Engine (Current Milestone)
+          Local video ingestion (MP4/GIF/WebM), aspect crop (128x64 2:1), multi-dither suite
+          (Atkinson, Floyd-Steinberg, Bayer 4x4/8x8, Burkes, Otsu), scrubbable timeline player,
+          C/C++ PROGMEM and live stream delivery
        │
        ▼
-Spec 007: Hardware Workspace & Multimeter Probing
-          Schematic canvas, live signal animation, logic probing, voltage levels
+Spec 007: Animation Reel Storage, LittleFS / SPIFFS Flasher & ESP32 Standalone Player
+          Persistent portable project reels, on-device frame storage, autonomous OLED playback
        │
        ▼
-Spec 008: Virtual ESP32 + Virtual Components
-          Headless MCU emulator, virtual I²C bus, virtual OLED canvas rendering
-       │
-       ▼
-PixelForge Hardware Simulator
+Spec 008: Canonical Hardware Project Schema, Interactive Wiring Graph & Virtual Simulator
+          hardware.json persistence, interactive routing canvas, in-memory ESP32 emulator
 ```
 
 ---
@@ -192,6 +190,18 @@ pub trait DeviceTransport: Send + Sync {
 - Physical serial ports implement `DeviceTransport` via `serialport-rs`.
 - The future **Virtual ESP32 Simulator** (Spec 008) will implement `DeviceTransport` via an in-memory channel or IPC, allowing the identical Serial Monitor, Packet Inspector, and Telemetry Gauges to monitor simulated hardware without a physical USB cable!
 
+```text
+Draw Canvas
+    ↓
+Uint8Array(1024)
+    ↓
+DeviceTransport
+       ├── SerialTransport → Physical ESP32 → Physical OLED
+       │
+       └── SimulatorTransport → Virtual ESP32 → Virtual OLED
+```
+The application frontend does not need to know whether the OLED display is sitting physically on a desk or simulated inside PixelForge.
+
 ---
 
 ## Detailed Feature Specifications
@@ -217,12 +227,18 @@ Inspired by ESP32 Monitor's `device_overview.py`:
   - **Flash Capacity & Speed**: Detected flash size (4MB / 8MB / 16MB), SPI clock mode (QIO / DIO @ 40MHz/80MHz).
   - **Clock Frequencies**: CPU clock (240MHz/160MHz) and crystal reference (40MHz/26MHz).
   - **Features**: Wi-Fi 802.11 b/g/n, Bluetooth Classic 4.2, BLE.
-- **Live Memory Gauges**:
+- **Live Memory Gauges & Silicon Treemap Heatmap (The Telemetry Selling Point)**:
   - Distinctive glowing circular progress gauges and bar meters inspired by `circular_progress.py`:
     - **Free Heap**: Real-time remaining dynamic RAM (bytes & percentage).
     - **Minimum Free Heap (Watermark)**: Critical indicator for tracking heap fragmentation or buffer leaks during continuous 1024-byte frame transmission.
     - **Flash Usage**: Application partition size vs. allocated partition ceiling.
     - **PSRAM (if fitted)**: External SPI RAM allocation.
+  - **Financial Market-Style Partition & Memory Treemap ("Silicon Heatmap")**:
+    - Modeled after financial market heatmaps (e.g. Finviz / Bloomberg S&P 500 capital-weight visualization):
+      - **Flash Storage Treemap**: Proportional partition blocks (`bootloader` 32KB @ `0x1000`, `partition_table` 4KB @ `0x8000`, `nvs` 20KB @ `0x9000`, `otadata` 8KB @ `0xE000`, `app0` / Firmware 1.2MB @ `0x10000`, and `spiffs` / Offline Animation Storage ~1.5MB).
+      - **Internal SRAM Heatmap**: Proportional memory blocks representing `Free Dynamic Heap`, `Watermark Margin` (leak detector), `In-Use Heap`, `Static BSS/Data`, and `DMA Framebuffer` (1024 bytes).
+      - **Color Semantics**: Emerald Green (>50% free headroom), Amber (50%–85% pressure), Crimson Red (>85% critical saturation / fragmentation), Dark Slate (Reserved/System).
+      - **Interactive Inspector**: Hovering any block displays hexadecimal base address, boundary offset, allocated/free bytes, and partition type.
 
 ---
 
