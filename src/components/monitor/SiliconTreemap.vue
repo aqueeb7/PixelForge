@@ -373,6 +373,22 @@ function calculateBlockFill(block: TreemapBlock): number {
   return Math.min(100, Math.max(0, Math.round((block.usedBytes / block.sizeBytes) * 100)))
 }
 
+function calculateLiquidHeight(block: TreemapBlock): number {
+  if (block.category === 'free') {
+    return 14
+  }
+  const fill = calculateBlockFill(block)
+  return Math.min(94, Math.max(16, fill))
+}
+
+function calculateDisplayPercent(block: TreemapBlock): string {
+  if (block.category === 'free') {
+    return '100% FREE'
+  }
+  const fill = calculateBlockFill(block)
+  return `${fill}%`
+}
+
 function selectBlock(id: string) {
   selectedBlockId.value = id
 }
@@ -572,24 +588,61 @@ function selectBlock(id: string) {
               <!-- Glass Specular Reflection Highlight -->
               <div class="tile-glass-specular" />
 
-              <!-- Vertical Animated Liquid Fill (Rises from bottom like water in a glass) -->
+              <!-- Vertical Animated Liquid Fill with Subtle Calm Wave (Water in Glass Container) -->
               <div
                 class="tile-liquid-fill"
                 :style="{
-                  height: `${Math.max(block.usedBytes > 0 ? 8 : 0, calculateBlockFill(block))}%`,
-                  background: `linear-gradient(180deg, ${block.color}50 0%, ${block.color}25 40%, ${block.color}15 100%)`,
-                  borderTop: block.usedBytes > 0 ? `2.5px solid ${block.color}` : 'none',
-                  boxShadow: block.usedBytes > 0 ? `0 -2px 14px ${block.color}, 0 -6px 24px ${block.color}45` : 'none',
+                  height: `${calculateLiquidHeight(block)}%`,
+                  background: `linear-gradient(180deg, ${block.color}45 0%, ${block.color}25 45%, ${block.color}12 100%)`,
+                  boxShadow: `0 -2px 14px ${block.color}50, inset 0 1px 0 rgba(255, 255, 255, 0.25)`,
                 }"
               >
-                <!-- Animated Water Surface Meniscus / Wave at the liquid boundary -->
-                <div v-if="block.usedBytes > 0" class="water-surface-wave" :style="{ backgroundColor: block.color }" />
+                <!-- Subtle Gentle Wave Surface SVG -->
+                <div class="subtle-wave-wrap">
+                  <svg class="subtle-wave-svg" viewBox="0 0 240 14" preserveAspectRatio="none">
+                    <path
+                      class="wave-path wave-path-back"
+                      :fill="block.color"
+                      fill-opacity="0.3"
+                      d="M0,7 C35,2 75,12 120,7 C165,2 205,12 240,7 L240,14 L0,14 Z"
+                    />
+                    <path
+                      class="wave-path wave-path-front"
+                      :fill="block.color"
+                      fill-opacity="0.65"
+                      d="M0,7 C45,12 85,2 120,7 C155,12 195,2 240,7 L240,14 L0,14 Z"
+                    />
+                  </svg>
+                </div>
+
+                <!-- Meniscus Water Surface Glow Line -->
+                <div class="water-surface-line" :style="{ backgroundColor: block.color }" />
+              </div>
+
+              <!-- Floating Percentage Gauge Pill at Water Surface Level on Card Edge -->
+              <div
+                class="water-edge-pill-wrap"
+                :style="{
+                  bottom: `${calculateLiquidHeight(block)}%`,
+                }"
+              >
+                <div
+                  class="surface-gauge-pill font-mono"
+                  :style="{
+                    backgroundColor: block.color,
+                    boxShadow: `0 2px 10px ${block.color}75`,
+                  }"
+                  :title="`Fill Level: ${calculateDisplayPercent(block)}`"
+                >
+                  <span class="pill-dot" />
+                  {{ calculateDisplayPercent(block) }}
+                </div>
               </div>
 
               <!-- Top Accent Glow Strip -->
               <div class="tile-glow-strip" :style="{ backgroundColor: block.color }" />
 
-              <!-- Tile Content Layer (Z-index above backdrop) -->
+              <!-- Clean Minimalist Tile Content Layer -->
               <div class="tile-content-layer">
                 <!-- Header: Category & Access -->
                 <div class="tile-header">
@@ -608,45 +661,16 @@ function selectBlock(id: string) {
                   </h5>
                 </div>
 
-                <!-- Metrics Row: Big Size & Chip Share -->
-                <div class="tile-metric-row">
-                  <span class="tile-size font-mono">{{ formatBytes(block.sizeBytes) }}</span>
-                  <span class="tile-share font-mono">({{ calculatePercent(block.sizeBytes) }})</span>
-                </div>
-
-                <!-- Card-Integrated Heat Progress Bar -->
-                <div class="tile-progress-container">
-                  <div class="progress-track">
-                    <div
-                      class="progress-fill"
-                      :style="{
-                        width: `${calculateBlockFill(block)}%`,
-                        backgroundColor: block.color,
-                        boxShadow: `0 0 6px ${block.color}90`,
-                      }"
-                    />
-                  </div>
-                  <div class="progress-labels font-mono">
-                    <span v-if="block.usedBytes > 0" class="used-label">
-                      {{ calculateBlockFill(block) }}% used
-                    </span>
-                    <span v-else class="free-label text-emerald">
-                      100% free
-                    </span>
-                    <span class="free-remain text-muted">
-                      {{ formatBytes(Math.max(0, block.sizeBytes - block.usedBytes)) }} headroom
+                <!-- Central Metric: Bold Size & Submetric Info -->
+                <div class="tile-metric-block">
+                  <div class="tile-size font-mono">{{ formatBytes(block.sizeBytes) }}</div>
+                  <div class="tile-submetric font-mono">
+                    <span class="submetric-share">{{ calculatePercent(block.sizeBytes) }} share</span>
+                    <span class="submetric-dot">•</span>
+                    <span class="submetric-status">
+                      {{ block.usedBytes > 0 ? `${formatBytes(Math.max(0, block.sizeBytes - block.usedBytes))} free` : '100% free' }}
                     </span>
                   </div>
-                </div>
-
-                <!-- Footer: Impact Note or Hex Bounds -->
-                <div class="tile-footer">
-                  <span v-if="detailLevel === 'creator'" class="footer-plain-note">
-                    {{ block.creatorImpact }}
-                  </span>
-                  <span v-else class="footer-hex-bounds font-mono">
-                    {{ block.addressHex }} → {{ block.endAddressHex }}
-                  </span>
                 </div>
               </div>
             </div>
@@ -1163,33 +1187,96 @@ function selectBlock(id: string) {
   pointer-events: none;
   z-index: 1;
   transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible;
+}
+
+/* Subtle, Calm, Non-Aggressive Wave Surface at Water Boundary */
+.subtle-wave-wrap {
+  position: absolute;
+  top: -7px;
+  left: -20%;
+  width: 140%;
+  height: 14px;
+  pointer-events: none;
   overflow: hidden;
 }
 
-/* Animated Water Surface Shimmer / Wave at the liquid boundary */
-.water-surface-wave {
+.subtle-wave-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wave-path-front {
+  animation: wave-front-drift 6.5s ease-in-out infinite alternate;
+}
+
+.wave-path-back {
+  animation: wave-back-drift 9s ease-in-out infinite alternate;
+}
+
+@keyframes wave-front-drift {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-35px);
+  }
+}
+
+@keyframes wave-back-drift {
+  0% {
+    transform: translateX(-25px);
+  }
+  100% {
+    transform: translateX(15px);
+  }
+}
+
+.water-surface-line {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.7) 50%, transparent 100%);
-  animation: liquid-wave 2.8s infinite ease-in-out;
+  height: 1.5px;
+  opacity: 0.9;
+  box-shadow: 0 0 8px currentColor;
 }
 
-@keyframes liquid-wave {
-  0% {
-    transform: translateX(-50%) scaleY(1);
-    opacity: 0.45;
-  }
-  50% {
-    transform: translateX(50%) scaleY(1.5);
-    opacity: 0.9;
-  }
-  100% {
-    transform: translateX(-50%) scaleY(1);
-    opacity: 0.45;
-  }
+/* Floating Percentage Gauge Pill at Water Surface Level on Card Edge */
+.water-edge-pill-wrap {
+  position: absolute;
+  right: 6px;
+  z-index: 6;
+  pointer-events: none;
+  transform: translateY(50%);
+  transition: bottom 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.surface-gauge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.12rem 0.38rem;
+  border-radius: 9999px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.surface-gauge-pill .pill-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background-color: #ffffff;
+  box-shadow: 0 0 4px #ffffff;
 }
 
 .tile-glow-strip {
@@ -1202,12 +1289,12 @@ function selectBlock(id: string) {
   z-index: 4;
 }
 
-/* Tile Content Layer */
+/* Clean Minimalist Tile Content Layer */
 .tile-content-layer {
   position: relative;
   z-index: 2;
   height: 100%;
-  padding: 0.45rem 0.65rem;
+  padding: 0.5rem 0.65rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1237,11 +1324,12 @@ function selectBlock(id: string) {
 }
 
 .tile-access {
-  font-size: 0.55rem;
+  font-size: 0.54rem;
   color: var(--color-text-muted);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   padding: 0.05rem 0.25rem;
-  border-radius: 2px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
 }
 
 /* Title Row: STRICTLY FULLY VISIBLE, NEVER DOTTED */
@@ -1249,6 +1337,7 @@ function selectBlock(id: string) {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  margin: 0.1rem 0;
 }
 
 .tile-icon {
@@ -1257,7 +1346,7 @@ function selectBlock(id: string) {
 }
 
 .tile-full-title {
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0;
@@ -1268,87 +1357,41 @@ function selectBlock(id: string) {
   word-break: normal;
 }
 
-/* Metric Row */
-.tile-metric-row {
+/* Central Metric: Bold Size & Submetric Info */
+.tile-metric-block {
   display: flex;
-  align-items: baseline;
-  gap: 0.3rem;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .tile-size {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 800;
-  color: var(--color-text-primary);
+  color: #ffffff;
   line-height: 1;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
-.tile-share {
-  font-size: 0.62rem;
-  color: var(--color-text-secondary);
-}
-
-/* Card-Integrated Heat Progress Container */
-.tile-progress-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
-}
-
-.progress-track {
-  width: 100%;
-  height: 6px;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
-  border-radius: 9999px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: 9999px;
-  transition: width 0.3s ease;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 80%);
-}
-
-.progress-labels {
+.tile-submetric {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.3rem;
   font-size: 0.58rem;
   line-height: 1;
 }
 
-.used-label {
-  color: var(--color-text-primary);
+.submetric-share {
+  color: var(--color-text-secondary);
   font-weight: 600;
 }
 
-.free-label {
-  font-weight: 700;
-}
-
-.free-remain {
+.submetric-dot {
   color: var(--color-text-muted);
+  opacity: 0.6;
 }
 
-/* Tile Footer */
-.tile-footer {
-  border-top: 1px solid var(--color-border-subtle);
-  padding-top: 0.2rem;
-  line-height: 1.2;
-}
-
-.footer-plain-note {
-  font-size: 0.62rem;
-  color: var(--color-text-secondary);
-  display: block;
-}
-
-.footer-hex-bounds {
-  font-size: 0.58rem;
+.submetric-status {
   color: var(--color-text-muted);
-  display: block;
 }
 
 /* Right Dossier Panel */
