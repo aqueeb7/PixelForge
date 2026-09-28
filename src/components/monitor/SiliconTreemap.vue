@@ -535,7 +535,7 @@ function selectBlock(id: string) {
       <div class="heatmap-workspace-grid">
         <!-- Left: Proportional Tiles Canvas -->
         <div class="heatmap-canvas-card">
-          <!-- Thin Top Distribution Bar -->
+          <!-- Thicker Multi-Colored Memory Distribution Bar (Glass Prism Style) -->
           <div class="distribution-bar-wrap" title="Proportional distribution of memory across chip">
             <div
               v-for="b in currentBlocks"
@@ -545,8 +545,12 @@ function selectBlock(id: string) {
                 width: `${(b.sizeBytes / currentTotalBytes) * 100}%`,
                 backgroundColor: b.color,
               }"
-              :title="`${b.friendlyName}: ${formatBytes(b.sizeBytes)}`"
-            />
+              :title="`${b.friendlyName}: ${formatBytes(b.sizeBytes)} (${calculatePercent(b.sizeBytes)})`"
+            >
+              <span v-if="((b.sizeBytes / currentTotalBytes) * 100) > 12" class="dist-label font-mono">
+                {{ b.friendlyName }}
+              </span>
+            </div>
           </div>
 
           <!-- Proportional Responsive Tiles -->
@@ -565,16 +569,22 @@ function selectBlock(id: string) {
               @mouseenter="selectBlock(block.id)"
               @click="selectBlock(block.id)"
             >
-              <!-- Full-Card Heatmap Progress Fill Layer -->
+              <!-- Glass Specular Reflection Highlight -->
+              <div class="tile-glass-specular" />
+
+              <!-- Liquid in a Glass Container Fill Layer -->
               <div
-                class="tile-heat-backdrop"
+                class="tile-liquid-fill"
                 :style="{
                   width: `${calculateBlockFill(block)}%`,
-                  background: `linear-gradient(90deg, ${block.color}18 0%, ${block.color}35 100%)`,
-                  borderRight: block.usedBytes > 0 ? `2px solid ${block.color}` : 'none',
-                  boxShadow: block.usedBytes > 0 ? `0 0 10px ${block.color}60` : 'none',
+                  background: `linear-gradient(90deg, ${block.color}22 0%, ${block.color}45 85%, ${block.color}70 100%)`,
+                  borderRight: block.usedBytes > 0 ? `2.5px solid ${block.color}` : 'none',
+                  boxShadow: block.usedBytes > 0 ? `2px 0 16px ${block.color}, 0 0 24px ${block.color}50` : 'none',
                 }"
-              />
+              >
+                <!-- Glowing Meniscus Edge Line -->
+                <div v-if="block.usedBytes > 0" class="meniscus-edge" :style="{ backgroundColor: block.color }" />
+              </div>
 
               <!-- Top Accent Glow Strip -->
               <div class="tile-glow-strip" :style="{ backgroundColor: block.color }" />
@@ -1054,17 +1064,40 @@ function selectBlock(id: string) {
 
 .distribution-bar-wrap {
   width: 100%;
-  height: 4px;
-  background: var(--color-border-subtle);
+  height: 12px; /* Thicker, prominent multi-colored glass tube */
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.65), 0 2px 8px rgba(0, 0, 0, 0.3);
   border-radius: 9999px;
   display: flex;
   overflow: hidden;
   flex-shrink: 0;
+  position: relative;
 }
 
 .dist-segment {
   height: 100%;
   transition: width 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid rgba(0, 0, 0, 0.45);
+  position: relative;
+}
+
+.dist-segment:hover {
+  filter: brightness(1.25);
+}
+
+.dist-label {
+  font-size: 0.54rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 0.35rem;
 }
 
 /* Proportional Heatmap Tiles Grid */
@@ -1078,42 +1111,69 @@ function selectBlock(id: string) {
   overflow: hidden;
 }
 
-/* The Finviz Tile: Pure Heat Map Surface */
+/* The Finviz Tile: Frosted Glass Container with Illuminated Liquid */
 .finviz-tile {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
-  border-top-width: 2.5px;
-  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.75) 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-top-width: 3px;
+  border-radius: 8px;
   position: relative;
   overflow: hidden;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 0;
+  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.18), inset 0 -1px 2px rgba(0, 0, 0, 0.5), 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 .finviz-tile:hover {
   border-color: rgba(255, 255, 255, 0.35);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.3), 0 10px 24px rgba(0, 0, 0, 0.5);
 }
 
 .tile--active {
   border-color: #38bdf8 !important;
-  box-shadow: 0 0 0 1.5px rgba(56, 189, 248, 0.35), 0 4px 14px rgba(0, 0, 0, 0.5);
-  background: var(--color-bg-elevated);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35), 0 0 0 1.5px rgba(56, 189, 248, 0.45), 0 10px 28px rgba(0, 0, 0, 0.6);
 }
 
-/* Card-Integrated Heat Progress Fill Backdrop */
-.tile-heat-backdrop {
+/* Glass Specular Reflection Highlight (top glossy curved sheen) */
+.tile-glass-specular {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 42%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 60%, transparent 100%);
+  pointer-events: none;
+  z-index: 3;
+  border-top-left-radius: 7px;
+  border-top-right-radius: 7px;
+}
+
+/* Liquid Layer inside the Glass Chamber */
+.tile-liquid-fill {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   pointer-events: none;
   z-index: 1;
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glowing Meniscus Edge Line */
+.meniscus-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2.5px;
+  box-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+  opacity: 0.95;
 }
 
 .tile-glow-strip {
@@ -1122,8 +1182,8 @@ function selectBlock(id: string) {
   left: 0;
   right: 0;
   height: 2px;
-  opacity: 0.7;
-  z-index: 3;
+  opacity: 0.75;
+  z-index: 4;
 }
 
 /* Tile Content Layer */
@@ -1220,8 +1280,10 @@ function selectBlock(id: string) {
 
 .progress-track {
   width: 100%;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.08);
+  height: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
   border-radius: 9999px;
   overflow: hidden;
 }
@@ -1230,6 +1292,7 @@ function selectBlock(id: string) {
   height: 100%;
   border-radius: 9999px;
   transition: width 0.3s ease;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, transparent 80%);
 }
 
 .progress-labels {
