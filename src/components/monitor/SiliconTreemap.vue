@@ -661,7 +661,9 @@ onUnmounted(() => {
             :style="{
               width: `${(b.sizeBytes / currentTotalBytes) * 100}%`,
               backgroundColor: b.color,
-              boxShadow: b.id === activeBlockId ? `inset 0 0 0 2px color-mix(in srgb, ${b.color} 35%, #000000), 0 0 14px ${b.color}90` : 'none',
+              outline: b.id === activeBlockId ? `2px solid color-mix(in srgb, ${b.color} 35%, #000000)` : 'none',
+              outlineOffset: '-2px',
+              boxShadow: b.id === activeBlockId ? `0 0 12px ${b.color}90` : 'none',
               zIndex: b.id === activeBlockId ? 5 : 1,
             }"
             :title="`${b.friendlyName}: ${formatBytes(b.sizeBytes)} (${calculatePercent(b.sizeBytes)})`"
@@ -1303,14 +1305,6 @@ onUnmounted(() => {
   z-index: 2;
 }
 
-.dist-segment--active::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 1.5px solid rgba(0, 0, 0, 0.45);
-  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.35), inset 0 -1px 2px rgba(0, 0, 0, 0.5);
-  pointer-events: none;
-}
 
 .segment-shine {
   position: absolute;
