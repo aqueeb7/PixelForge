@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useDeviceStore } from '../../stores/device'
 
 const deviceStore = useDeviceStore()
@@ -15,8 +15,15 @@ const telemetry = computed(() => deviceStore.telemetry)
 const chipDossier = computed(() => deviceStore.chipDossier)
 
 // Active inspected block & floating dossier state
-const selectedBlockId = ref<string>('spiffs')
+const selectedBlockId = ref<string | null>(null)
+const hoveredBlockId = ref<string | null>(null)
 const isDossierOpen = ref<boolean>(false)
+
+const activeBlockId = computed<string | null>(() => {
+  if (hoveredBlockId.value) return hoveredBlockId.value
+  if (isDossierOpen.value && selectedBlockId.value) return selectedBlockId.value
+  return null
+})
 
 interface TreemapBlock {
   id: string
@@ -354,7 +361,8 @@ const currentBlocks = computed<TreemapBlock[]>(() => {
 })
 
 const activeBlock = computed<TreemapBlock>(() => {
-  const found = currentBlocks.value.find((b) => b.id === selectedBlockId.value)
+  const targetId = selectedBlockId.value ?? hoveredBlockId.value
+  const found = currentBlocks.value.find((b) => b.id === targetId)
   return found || currentBlocks.value[0]
 })
 
@@ -390,19 +398,54 @@ function calculateDisplayPercent(block: TreemapBlock): string {
   return `${fill}%`
 }
 
+function onCardMouseEnter(id: string) {
+  hoveredBlockId.value = id
+}
+
+function onCardMouseLeave(id: string) {
+  if (hoveredBlockId.value === id) {
+    hoveredBlockId.value = null
+  }
+}
+
+function onGridMouseLeave() {
+  hoveredBlockId.value = null
+}
+
+function scrollToLegend(id: string) {
+  nextTick(() => {
+    const el = document.getElementById(`legend-item-${id}`)
+    if (el) {
+      el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      })
+    }
+  })
+}
+
 function selectBlock(id: string, openDossier = false) {
   selectedBlockId.value = id
   if (openDossier) {
     isDossierOpen.value = true
+    scrollToLegend(id)
   }
 }
 
 function closeDossier() {
   isDossierOpen.value = false
+  selectedBlockId.value = null
 }
 
 function toggleDossier() {
   isDossierOpen.value = !isDossierOpen.value
+  if (isDossierOpen.value && !selectedBlockId.value) {
+    selectedBlockId.value = currentBlocks.value[0]?.id ?? 'spiffs'
+    scrollToLegend(selectedBlockId.value)
+  } else if (!isDossierOpen.value) {
+    selectedBlockId.value = null
+  }
 }
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -614,12 +657,14 @@ onUnmounted(() => {
             v-for="b in currentBlocks"
             :key="b.id"
             class="dist-segment"
-            :class="{ 'dist-segment--active': b.id === selectedBlockId }"
+            :class="{ 'dist-segment--active': b.id === activeBlockId }"
             :style="{
               width: `${(b.sizeBytes / currentTotalBytes) * 100}%`,
               backgroundColor: b.color,
             }"
             :title="`${b.friendlyName}: ${formatBytes(b.sizeBytes)} (${calculatePercent(b.sizeBytes)})`"
+            @mouseenter="onCardMouseEnter(b.id)"
+            @mouseleave="onCardMouseLeave(b.id)"
             @click="selectBlock(b.id, true)"
           >
             <div class="segment-shine" />
@@ -637,9 +682,12 @@ onUnmounted(() => {
           <button
             v-for="b in currentBlocks"
             :key="`legend-${b.id}`"
+            :id="`legend-item-${b.id}`"
             class="legend-item"
-            :class="{ 'legend-item--active': b.id === selectedBlockId }"
+            :class="{ 'legend-item--active': b.id === activeBlockId }"
             :title="`Inspect ${b.friendlyName} (${formatBytes(b.sizeBytes)})`"
+            @mouseenter="onCardMouseEnter(b.id)"
+            @mouseleave="onCardMouseLeave(b.id)"
             @click="selectBlock(b.id, true)"
           >
             <span class="legend-color-dot" :style="{ backgroundColor: b.color }" />
@@ -655,19 +703,18 @@ onUnmounted(() => {
       <!-- ========================================================= -->
       <div class="heatmap-workspace-area">
         <!-- Proportional Responsive Tiles Grid (100% Horizontal Space) -->
-        <div class="tiles-grid">
+        <div class="tiles-grid" @mouseleave="onGridMouseLeave">
           <div
             v-for="block in currentBlocks"
             :key="block.id"
             class="finviz-tile"
             :class="{
-              'tile--active': block.id === selectedBlockId,
+              'tile--active': block.id === activeBlockId,
+              'tile--selected': block.id === selectedBlockId && isDossierOpen,
               [`cat--${block.category}`]: true,
             }"
-            :style="{
-              borderTopColor: block.color,
-            }"
-            @mouseenter="selectBlock(block.id, false)"
+            @mouseenter="onCardMouseEnter(block.id)"
+            @mouseleave="onCardMouseLeave(block.id)"
             @click="selectBlock(block.id, true)"
           >
             <!-- Glass Specular Reflection Highlight -->
@@ -729,9 +776,6 @@ onUnmounted(() => {
                 {{ calculateDisplayPercent(block) }}
               </div>
             </div>
-
-            <!-- Top Accent Glow Strip -->
-            <div class="tile-glow-strip" :style="{ backgroundColor: block.color }" />
 
             <!-- Clean Minimalist Tile Content Layer -->
             <div class="tile-content-layer">
@@ -1306,16 +1350,18 @@ onUnmounted(() => {
   color: var(--color-text-secondary);
 }
 
-.legend-item:hover,
-.legend-item--active {
+.legend-item:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.25);
   color: var(--color-text-primary);
 }
 
 .legend-item--active {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.22) !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5), inset 0 0 4px rgba(56, 189, 248, 0.25);
+  color: #ffffff !important;
+  transform: translateY(-1px);
 }
 
 .legend-color-dot {
@@ -1364,7 +1410,6 @@ onUnmounted(() => {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-top-width: 3px;
   border-radius: 8px;
   position: relative;
   overflow: hidden;
@@ -1505,15 +1550,6 @@ onUnmounted(() => {
   box-shadow: 0 0 4px #ffffff;
 }
 
-.tile-glow-strip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  opacity: 0.75;
-  z-index: 4;
-}
 
 /* Clean Minimalist Tile Content Layer */
 .tile-content-layer {
