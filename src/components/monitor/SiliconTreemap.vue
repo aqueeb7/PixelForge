@@ -661,6 +661,8 @@ onUnmounted(() => {
             :style="{
               width: `${(b.sizeBytes / currentTotalBytes) * 100}%`,
               backgroundColor: b.color,
+              boxShadow: b.id === activeBlockId ? `inset 0 0 0 2px #ffffff, 0 0 16px ${b.color}` : 'none',
+              zIndex: b.id === activeBlockId ? 5 : 1,
             }"
             :title="`${b.friendlyName}: ${formatBytes(b.sizeBytes)} (${calculatePercent(b.sizeBytes)})`"
             @mouseenter="onCardMouseEnter(b.id)"
@@ -685,6 +687,12 @@ onUnmounted(() => {
             :id="`legend-item-${b.id}`"
             class="legend-item"
             :class="{ 'legend-item--active': b.id === activeBlockId }"
+            :style="b.id === activeBlockId ? {
+              backgroundColor: `${b.color}25`,
+              borderColor: b.color,
+              boxShadow: `0 0 12px ${b.color}75, inset 0 0 4px ${b.color}40`,
+              color: '#ffffff',
+            } : {}"
             :title="`Inspect ${b.friendlyName} (${formatBytes(b.sizeBytes)})`"
             @mouseenter="onCardMouseEnter(b.id)"
             @mouseleave="onCardMouseLeave(b.id)"
@@ -713,6 +721,10 @@ onUnmounted(() => {
               'tile--selected': block.id === selectedBlockId && isDossierOpen,
               [`cat--${block.category}`]: true,
             }"
+            :style="block.id === activeBlockId ? {
+              borderColor: block.color,
+              boxShadow: `inset 0 1px 2px rgba(255, 255, 255, 0.35), 0 0 0 1.5px ${block.color}85, 0 12px 30px ${block.color}45`,
+            } : {}"
             @mouseenter="onCardMouseEnter(block.id)"
             @mouseleave="onCardMouseLeave(block.id)"
             @click="selectBlock(block.id, true)"
@@ -1398,7 +1410,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   grid-auto-rows: 1fr;
-  gap: 0.55rem;
+  gap: 0.6rem;
+  padding: 0.35rem; /* Safe padding so scaled cards never clip or overlap container boundaries */
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -1416,20 +1429,22 @@ onUnmounted(() => {
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center center;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease, box-shadow 0.22s ease;
   min-height: 0;
   box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.18), inset 0 -1px 2px rgba(0, 0, 0, 0.5), 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 .finviz-tile:hover {
-  border-color: rgba(255, 255, 255, 0.35);
-  transform: translateY(-2px);
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.3), 0 10px 24px rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.02);
+  z-index: 10;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35), 0 12px 28px rgba(0, 0, 0, 0.55);
 }
 
 .tile--active {
-  border-color: #38bdf8 !important;
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35), 0 0 0 1.5px rgba(56, 189, 248, 0.45), 0 10px 28px rgba(0, 0, 0, 0.6);
+  transform: scale(1.024) !important;
+  z-index: 20 !important;
 }
 
 /* Glass Specular Reflection Highlight (top glossy curved sheen) */
