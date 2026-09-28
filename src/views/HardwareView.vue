@@ -11,7 +11,6 @@ import OledDeviceCard from '../components/monitor/OledDeviceCard.vue'
 import DeviceDossier from '../components/monitor/DeviceDossier.vue'
 
 // Diagnostics, Console & Tools Components
-import MemoryGauges from '../components/monitor/MemoryGauges.vue'
 import SiliconTreemap from '../components/monitor/SiliconTreemap.vue'
 import SerialTerminal from '../components/monitor/SerialTerminal.vue'
 import PacketInspector from '../components/monitor/PacketInspector.vue'
@@ -241,9 +240,8 @@ async function handleSave() {
         </aside>
       </div>
 
-      <!-- MODE 2: Runtime Telemetry (Gauges, Allocations & Framerate) -->
+      <!-- MODE 2: Runtime Telemetry (Unified HUD & Silicon Treemap Heatmap) -->
       <div v-else-if="activeTab === 'telemetry'" class="tab-pane telemetry-pane">
-        <MemoryGauges />
         <SiliconTreemap />
       </div>
 
