@@ -8,47 +8,184 @@ const platformMode = computed(() => getPlatformMode())
 
 const statusLabel = computed(() => {
   switch (deviceStore.status) {
-    case 'connected':    return `Connected (${deviceStore.selectedPort || 'Serial'})`
-    case 'connecting':   return `Connecting (${deviceStore.selectedPort})…`
-    case 'error':        return 'Error'
-    default:             return 'Disconnected'
+    case 'connected':
+      return deviceStore.deviceInfo?.device_name || `Connected (${deviceStore.selectedPort})`
+    case 'connecting':
+      return `Connecting (${deviceStore.selectedPort})…`
+    case 'error':
+      return 'Connection Error'
+    default:
+      return 'Hardware Offline'
   }
 })
 
-const statusClass = computed(() => ({
-  'status-dot--connected':    deviceStore.status === 'connected',
-  'status-dot--connecting':   deviceStore.status === 'connecting',
-  'status-dot--error':        deviceStore.status === 'error',
-  'status-dot--disconnected': deviceStore.status === 'disconnected',
-}))
+function handleToggleConnect() {
+  if (deviceStore.status === 'connected') {
+    deviceStore.disconnect()
+  } else {
+    deviceStore.connect()
+  }
+}
 </script>
 
 <template>
-  <div class="status-bar" role="status" aria-live="polite">
-    <div class="status-item">
-      <span class="status-chip-label">ESP32</span>
-      <span class="status-dot" :class="statusClass" />
-      <span class="status-chip-value">{{ statusLabel }}</span>
+  <footer class="status-bar font-mono" role="status" aria-live="polite">
+    <!-- Left: Status & Telemetry Indicators -->
+    <div class="status-group status-left">
+      <!-- Device Status Pill -->
+      <div class="status-item device-identity" :class="`status--${deviceStore.status}`">
+        <span
+          class="status-dot"
+          :class="{
+            'status-dot--connected': deviceStore.status === 'connected',
+            'status-dot--connecting': deviceStore.status === 'connecting' || deviceStore.isDisconnecting,
+            'status-dot--error': deviceStore.status === 'error',
+            'status-dot--disconnected': deviceStore.status === 'disconnected',
+          }"
+        />
+        <span class="device-label">{{ statusLabel }}</span>
+      </div>
+
+      <!-- Platform Mode Tag -->
+      <div class="status-item status-platform">
+        <span class="status-mode-tag" :class="'status-mode--' + platformMode">
+          {{ platformMode === 'desktop' ? 'Desktop' : 'Web' }}
+        </span>
+      </div>
+
+      <!-- Live Micro-Telemetry (Active when Connected) -->
+      <div v-if="deviceStore.status === 'connected' && deviceStore.telemetry" class="telemetry-compact">
+        <span class="telemetry-badge" title="Free Heap RAM on ESP32">
+          RAM: {{ Math.round(deviceStore.telemetry.free_heap / 1024) }}KB
+        </span>
+        <span class="telemetry-badge" title="Live Display Refresh Rate">
+          {{ deviceStore.telemetry.current_fps.toFixed(1) }} FPS
+        </span>
+      </div>
     </div>
-    <div class="status-item status-platform">
-      <span class="status-chip-label">Platform</span>
-      <span class="status-mode-tag" :class="'status-mode--' + platformMode">
-        {{ platformMode === 'desktop' ? 'Desktop' : 'Web' }}
-      </span>
+
+    <!-- Right: Universal Hardware Control Band -->
+    <div class="status-group status-right">
+      <!-- Port Selector -->
+      <div class="control-unit" title="Serial COM Port">
+        <select
+          id="status-port-select"
+          v-model="deviceStore.selectedPort"
+          class="status-select font-mono"
+          :disabled="deviceStore.status === 'connected' || deviceStore.status === 'connecting'"
+        >
+          <option v-if="deviceStore.ports.length === 0" value="" disabled>
+            No COM Ports
+          </option>
+          <option
+            v-for="p in deviceStore.ports"
+            :key="p.port_name"
+            :value="p.port_name"
+          >
+            {{ p.port_name }}
+          </option>
+        </select>
+        <button
+          class="btn-status-icon"
+          title="Scan and refresh available COM ports"
+          :disabled="deviceStore.isRefreshingPorts || deviceStore.status === 'connecting'"
+          @click="deviceStore.refreshPorts"
+        >
+          <span class="icon-refresh" :class="{ 'is-spinning': deviceStore.isRefreshingPorts }">🔄</span>
+        </button>
+      </div>
+
+      <!-- Baud Rate Selector -->
+      <div class="control-unit" title="Baud Rate">
+        <select
+          v-model.number="deviceStore.baudRate"
+          class="status-select baud-select font-mono"
+          :disabled="deviceStore.status === 'connected' || deviceStore.status === 'connecting'"
+        >
+          <option :value="115200">115200</option>
+          <option :value="460800">460800</option>
+          <option :value="921600">921600</option>
+        </select>
+      </div>
+
+      <!-- Connect / Disconnect Action Button -->
+      <button
+        class="btn-status-action btn-connect font-mono"
+        :class="{
+          'is-connected': deviceStore.status === 'connected',
+          'is-connecting': deviceStore.status === 'connecting' || deviceStore.isDisconnecting,
+        }"
+        :disabled="!deviceStore.selectedPort || deviceStore.status === 'connecting' || deviceStore.isDisconnecting"
+        @click="handleToggleConnect"
+      >
+        <span v-if="deviceStore.status === 'connecting'" class="inline-flex items-center gap-1">
+          <span class="status-spinner" /> Connecting…
+        </span>
+        <span v-else-if="deviceStore.isDisconnecting" class="inline-flex items-center gap-1">
+          <span class="status-spinner" /> Disconnecting…
+        </span>
+        <span v-else-if="deviceStore.status === 'connected'">
+          Disconnect
+        </span>
+        <span v-else>
+          ⚡ Connect
+        </span>
+      </button>
+
+      <!-- Ping Quick Action -->
+      <button
+        v-if="deviceStore.status === 'connected'"
+        class="btn-status-action btn-ping font-mono"
+        :disabled="deviceStore.isPinging"
+        title="Send PING packet (0x01) to measure round-trip latency"
+        @click="deviceStore.ping"
+      >
+        <span v-if="deviceStore.isPinging" class="animate-pulse inline-flex items-center gap-1">
+          <span class="status-spinner" /> Pinging…
+        </span>
+        <span v-else>
+          Ping <span v-if="deviceStore.lastPingLatency !== null" class="latency-val">{{ deviceStore.lastPingLatency }}ms</span>
+        </span>
+      </button>
+
+      <!-- Clear OLED Display Quick Action -->
+      <button
+        v-if="deviceStore.status === 'connected'"
+        class="btn-status-action btn-clear font-mono"
+        :disabled="deviceStore.isClearing"
+        title="Clear physical OLED display and frame buffer (0x04)"
+        @click="deviceStore.clear"
+      >
+        <span v-if="deviceStore.isClearing" class="animate-pulse">Clearing…</span>
+        <span v-else>🧹 Clear</span>
+      </button>
     </div>
-  </div>
+  </footer>
 </template>
 
 <style scoped>
 .status-bar {
-  height: 36px;
-  background-color: var(--color-bg-sidebar);
-  border-top: 1px solid var(--color-border-subtle);
+  height: 34px;
+  background-color: #0A0D14;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
-  padding: 0 1rem;
-  gap: 1.5rem;
+  justify-content: space-between;
+  padding: 0 0.85rem;
+  gap: 1rem;
   flex-shrink: 0;
+  user-select: none;
+  z-index: 30;
+}
+
+.status-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.status-left {
+  min-width: 0;
 }
 
 .status-item {
@@ -57,20 +194,37 @@ const statusClass = computed(() => ({
   gap: 0.4rem;
 }
 
-.status-chip-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.device-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
-.status-chip-value {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
+.status--connected {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
-/* Status indicator dot */
+.status--connecting {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.status--error {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.device-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #E2E8F0;
+  white-space: nowrap;
+}
+
 .status-dot {
   width: 6px;
   height: 6px;
@@ -79,56 +233,227 @@ const statusClass = computed(() => ({
 }
 
 .status-dot--connected {
-  background-color: var(--color-success);
-  box-shadow: 0 0 6px var(--color-success);
+  background-color: #10B981;
+  box-shadow: 0 0 6px #10B981;
   animation: pulse-connected 2s ease-in-out infinite;
 }
 
 .status-dot--connecting {
-  background-color: var(--color-warning);
+  background-color: #F59E0B;
   animation: pulse-connecting 0.8s ease-in-out infinite alternate;
 }
 
 .status-dot--error {
-  background-color: var(--color-error);
+  background-color: #EF4444;
 }
 
 .status-dot--disconnected {
-  background-color: var(--color-disconnected);
-}
-
-@keyframes pulse-connected {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
-}
-
-@keyframes pulse-connecting {
-  from { opacity: 0.3; }
-  to   { opacity: 1; }
-}
-
-.status-platform {
-  margin-left: auto;
+  background-color: #64748B;
 }
 
 .status-mode-tag {
   font-size: 0.65rem;
   font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
+  padding: 1px 6px;
+  border-radius: 3px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 .status-mode--desktop {
-  background-color: rgba(124, 111, 255, 0.15);
-  color: #a5b4fc;
-  border: 1px solid rgba(124, 111, 255, 0.3);
+  background-color: rgba(56, 189, 248, 0.12);
+  color: #38BDF8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
 }
 
 .status-mode--web {
-  background-color: rgba(56, 189, 248, 0.15);
-  color: #7dd3fc;
+  background-color: rgba(168, 85, 247, 0.12);
+  color: #C084FC;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
+.telemetry-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.telemetry-badge {
+  font-size: 0.66rem;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #38BDF8;
+  padding: 0.08rem 0.4rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.status-right {
+  flex-shrink: 0;
+  gap: 0.45rem;
+}
+
+.control-unit {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.status-select {
+  background: #111827;
+  color: #E2E8F0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  padding: 0.18rem 0.4rem;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.status-select:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.status-select:focus {
+  border-color: #38BDF8;
+}
+
+.status-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.baud-select {
+  width: 76px;
+}
+
+.btn-status-icon {
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #94A3B8;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.68rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.btn-status-icon:hover:not(:disabled) {
+  border-color: #38BDF8;
+  color: #FFFFFF;
+}
+
+.icon-refresh.is-spinning {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+.btn-status-action {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-connect {
+  background: linear-gradient(135deg, #059669, #047857);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #FFFFFF;
+}
+
+.btn-connect:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+}
+
+.btn-connect.is-connected {
+  background: #1E293B;
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #FCA5A5;
+}
+
+.btn-connect.is-connected:hover:not(:disabled) {
+  background: #7F1D1D;
+  border-color: #EF4444;
+  color: #FFFFFF;
+}
+
+.btn-connect:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-ping {
+  background: rgba(56, 189, 248, 0.1);
   border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38BDF8;
+}
+
+.btn-ping:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-ping:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.latency-val {
+  color: #4ADE80;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.btn-clear {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #94A3B8;
+}
+
+.btn-clear:hover:not(:disabled) {
+  background: rgba(148, 163, 184, 0.18);
+  color: #F8FAFC;
+  transform: translateY(-1px);
+}
+
+.btn-clear:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.status-spinner {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-connected {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.9); }
+}
+
+@keyframes pulse-connecting {
+  0% { opacity: 0.3; }
+  100% { opacity: 1; }
 }
 </style>

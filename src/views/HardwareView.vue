@@ -123,12 +123,13 @@ async function handleSave() {
           class="btn-connect"
           :class="{
             'btn-connect--connected': deviceStore.status === 'connected',
-            'btn-connect--connecting': deviceStore.status === 'connecting',
+            'btn-connect--connecting': deviceStore.status === 'connecting' || deviceStore.isDisconnecting,
           }"
-          :disabled="!deviceStore.selectedPort || deviceStore.status === 'connecting'"
+          :disabled="!deviceStore.selectedPort || deviceStore.status === 'connecting' || deviceStore.isDisconnecting"
           @click="handleToggleConnect"
         >
           <span v-if="deviceStore.status === 'connecting'">Connecting…</span>
+          <span v-else-if="deviceStore.isDisconnecting">Disconnecting…</span>
           <span v-else-if="deviceStore.status === 'connected'">Disconnect</span>
           <span v-else>Connect</span>
         </button>
@@ -137,10 +138,14 @@ async function handleSave() {
         <button
           v-if="deviceStore.status === 'connected'"
           class="btn-ping"
+          :disabled="deviceStore.isPinging"
           title="Send PING packet (0x01)"
           @click="deviceStore.ping"
         >
-          Ping <span v-if="deviceStore.lastPingLatency !== null" class="latency font-mono">{{ deviceStore.lastPingLatency }}ms</span>
+          <span v-if="deviceStore.isPinging" class="animate-pulse">Pinging…</span>
+          <span v-else>
+            Ping <span v-if="deviceStore.lastPingLatency !== null" class="latency font-mono">{{ deviceStore.lastPingLatency }}ms</span>
+          </span>
         </button>
       </div>
 

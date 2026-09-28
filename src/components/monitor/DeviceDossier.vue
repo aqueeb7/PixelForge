@@ -38,18 +38,20 @@ function formatMb(bytes?: number): string {
         <button
           class="btn-mcu-action"
           title="Software reboot via command 0x06"
-          :disabled="!isConnected"
+          :disabled="!isConnected || deviceStore.isRebooting"
           @click="deviceStore.restart(false)"
         >
-          ↺ Reboot
+          <span v-if="deviceStore.isRebooting" class="animate-pulse">↺ Rebooting…</span>
+          <span v-else>↺ Reboot</span>
         </button>
         <button
           class="btn-mcu-action btn-danger"
           title="Hardware reset via DTR/RTS pulse"
-          :disabled="!isConnected"
+          :disabled="!isConnected || deviceStore.isRebooting"
           @click="deviceStore.restart(true)"
         >
-          ⚡ Reset
+          <span v-if="deviceStore.isRebooting" class="animate-pulse">⚡ Resetting…</span>
+          <span v-else>⚡ Reset</span>
         </button>
       </div>
     </div>

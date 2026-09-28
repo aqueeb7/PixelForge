@@ -26,6 +26,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "resources/pixelforge_firmware.bin": "resources/pixelforge_firmware.bin",
+      "resources/bootloader.bin": "resources/bootloader.bin",
+      "resources/partitions.bin": "resources/partitions.bin"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useFlasherStore } from '../../stores/flasher'
 import { useDeviceStore } from '../../stores/device'
 
@@ -8,6 +8,15 @@ const deviceStore = useDeviceStore()
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const isFlashing = computed(() => ['connecting', 'erasing', 'writing', 'verifying'].includes(flasherStore.flashState.status))
+
+onMounted(async () => {
+  if (deviceStore.ports.length === 0) {
+    await deviceStore.refreshPorts()
+  }
+  if (!deviceStore.selectedPort && deviceStore.ports.length > 0) {
+    deviceStore.selectedPort = deviceStore.ports[0].port_name
+  }
+})
 
 function onFileSelected(e: Event) {
   const target = e.target as HTMLInputElement
@@ -38,9 +47,32 @@ function handleErase() {
         <span class="icon">⚡</span>
         <h3 class="title">ESP32 Firmware Flasher & Provisioner</h3>
       </div>
-      <span class="header-target font-mono">
-        Target Port: {{ deviceStore.selectedPort || 'None selected' }}
-      </span>
+      <div class="header-port-selector font-mono">
+        <label for="flasher-port">Target Port:</label>
+        <select
+          id="flasher-port"
+          v-model="deviceStore.selectedPort"
+          class="flasher-port-select font-mono"
+          :disabled="isFlashing"
+        >
+          <option v-if="deviceStore.ports.length === 0" value="">No Ports Detected</option>
+          <option
+            v-for="p in deviceStore.ports"
+            :key="p.port_name"
+            :value="p.port_name"
+          >
+            {{ p.port_name }} ({{ p.port_type }})
+          </option>
+        </select>
+        <button
+          class="btn-refresh-port"
+          :disabled="isFlashing"
+          title="Refresh COM Ports"
+          @click="deviceStore.refreshPorts"
+        >
+          🔄
+        </button>
+      </div>
     </div>
 
     <!-- Progress Notification Strip (visible when active or done/error) -->
@@ -196,9 +228,42 @@ function handleErase() {
   margin: 0;
 }
 
-.header-target {
+.header-port-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+}
+
+.flasher-port-select {
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
+  outline: none;
+}
+
+.flasher-port-select:focus {
+  border-color: var(--color-accent);
+}
+
+.btn-refresh-port {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
   color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
+  transition: all 0.15s;
+}
+
+.btn-refresh-port:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
 }
 
 /* Progress Notification Strip */

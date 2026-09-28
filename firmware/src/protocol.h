@@ -13,7 +13,11 @@ enum CommandType : uint8_t {
     CMD_SEND_FRAME = 0x03,
     CMD_CLEAR_DISPLAY = 0x04,
     CMD_GET_TELEMETRY = 0x05,
-    CMD_RESTART_DEVICE = 0x06
+    CMD_RESTART_DEVICE = 0x06,
+    CMD_START_REEL_UPLOAD = 0x07,
+    CMD_APPEND_REEL_FRAME = 0x08,
+    CMD_PLAY_REEL = 0x09,
+    CMD_STOP_REEL = 0x0A
 };
 
 // Device Responses (High-bit convention: 0x80 | CMD)
@@ -24,6 +28,10 @@ enum ResponseType : uint8_t {
     RESP_CLEAR_ACK = 0x84,
     RESP_TELEMETRY_DATA = 0x85,
     RESP_RESTART_ACK = 0x86,
+    RESP_REEL_UPLOAD_ACK = 0x87,
+    RESP_REEL_FRAME_ACK = 0x88,
+    RESP_PLAY_REEL_ACK = 0x89,
+    RESP_STOP_REEL_ACK = 0x8A,
     RESP_ERROR = 0xFF
 };
 

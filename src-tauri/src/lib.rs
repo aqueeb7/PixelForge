@@ -11,12 +11,13 @@ use tauri::async_runtime::Mutex;
 use commands::app_info::get_app_info;
 use commands::hardware::{get_board_profiles, get_hardware_config, save_hardware_config};
 use commands::monitor::{
-    detect_chip_dossier, erase_device_flash, flash_firmware, get_telemetry, poll_serial_events,
-    restart_device, send_serial_command, send_serial_raw_hex,
+    detect_chip_dossier, erase_device_flash, flash_firmware, flash_pixelforge_firmware,
+    get_telemetry, poll_serial_events, restart_device, send_serial_command, send_serial_raw_hex,
 };
 use commands::serial::{
     clear_display, connect_device, disconnect_device, get_device_info, get_test_pattern,
-    list_serial_ports, ping_device, send_frame, SharedSerialManager,
+    list_serial_ports, ping_device, send_frame, stop_device_reel, upload_and_play_reel,
+    SharedSerialManager,
 };
 use serial_service::SerialManager;
 
@@ -47,7 +48,10 @@ pub fn run() {
             poll_serial_events,
             detect_chip_dossier,
             flash_firmware,
-            erase_device_flash
+            flash_pixelforge_firmware,
+            erase_device_flash,
+            upload_and_play_reel,
+            stop_device_reel
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

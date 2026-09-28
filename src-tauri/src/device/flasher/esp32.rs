@@ -1,5 +1,7 @@
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::{DeviceFlasher, FlashProgress};
 use crate::device::telemetry::ChipDossier;
@@ -52,7 +54,6 @@ impl Esp32Flasher {
             .open()
             .map_err(|e| format!("Normal reset failed to open port: {}", e))?;
 
-        // Pull EN LOW then release HIGH with GPIO0 floating
         port.write_request_to_send(false).map_err(|e| e.to_string())?;
         port.write_data_terminal_ready(true).map_err(|e| e.to_string())?;
         thread::sleep(Duration::from_millis(120));
@@ -61,33 +62,184 @@ impl Esp32Flasher {
 
         Ok(())
     }
+
+    /// Resolves the python executable path, preferring the system python.
+    fn python_cmd() -> String {
+        // Try python, then python3 — whichever is available
+        for candidate in &["python", "python3"] {
+            if let Ok(out) = Command::new(candidate).arg("--version").output() {
+                if out.status.success() {
+                    return candidate.to_string();
+                }
+            }
+        }
+        "python".to_string()
+    }
+
+    /// Runs the real esptool flashing pipeline via `python -m esptool`.
+    /// This is the same mechanism Arduino IDE uses internally.
+    ///
+    /// Full flash sequence:
+    ///   0x1000  bootloader.bin
+    ///   0x8000  partitions.bin
+    ///   0x10000 firmware.bin
+    pub fn flash_with_esptool(
+        &self,
+        bootloader_path: &str,
+        partitions_path: &str,
+        firmware_path: &str,
+        on_progress: &dyn Fn(FlashProgress),
+    ) -> Result<(), String> {
+        let python = Self::python_cmd();
+
+        on_progress(FlashProgress {
+            stage: format!("Connecting to ESP32 on {}...", self.port_name),
+            percent: 2,
+            speed_kbs: 0.0,
+            bytes_written: 0,
+            bytes_total: 0,
+        });
+
+        // esptool write_flash arguments
+        let args = vec![
+            "-m".to_string(),
+            "esptool".to_string(),
+            "--chip".to_string(), "esp32".to_string(),
+            "--port".to_string(), self.port_name.clone(),
+            "--baud".to_string(), self.baud_rate.to_string(),
+            "--before".to_string(), "default_reset".to_string(),
+            "--after".to_string(), "hard_reset".to_string(),
+            "write_flash".to_string(),
+            "--flash_mode".to_string(), "dio".to_string(),
+            "--flash_freq".to_string(), "40m".to_string(),
+            "--flash_size".to_string(), "detect".to_string(),
+            "0x1000".to_string(),  bootloader_path.to_string(),
+            "0x8000".to_string(),  partitions_path.to_string(),
+            "0x10000".to_string(), firmware_path.to_string(),
+        ];
+
+        let mut child = Command::new(&python)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to launch esptool (python -m esptool): {}. Ensure Python is installed.", e))?;
+
+        // Stream stdout+stderr to parse progress
+        let stderr = child.stderr.take().unwrap();
+        let reader = BufReader::new(stderr);
+
+        let mut last_percent: u8 = 2;
+        let mut last_stage = String::new();
+
+        for line in reader.lines() {
+            let line = match line {
+                Ok(l) => l,
+                Err(_) => continue,
+            };
+
+            // Parse esptool progress lines:
+            // "Writing at 0x00010000... (5 %)"
+            // "Hash of data verified."
+            // "Leaving..."
+            let trimmed = line.trim();
+
+            if trimmed.contains("Connecting") {
+                last_stage = "Connecting to ESP32...".to_string();
+                last_percent = 5;
+            } else if trimmed.contains("Chip is") {
+                last_stage = format!("Detected: {}", trimmed);
+                last_percent = 8;
+            } else if trimmed.contains("Uploading stub") || trimmed.contains("Running stub") {
+                last_stage = "Loading flash stub...".to_string();
+                last_percent = 12;
+            } else if trimmed.contains("Configuring flash") {
+                last_stage = "Configuring flash...".to_string();
+                last_percent = 15;
+            } else if trimmed.contains("Writing at") {
+                // "Writing at 0x0001f0e0... (20 %)"
+                if let Some(pct_start) = trimmed.rfind('(') {
+                    if let Some(pct_end) = trimmed.rfind('%') {
+                        let pct_str = trimmed[pct_start + 1..pct_end].trim();
+                        if let Ok(pct) = pct_str.parse::<u8>() {
+                            // Scale 0–100% write into 15–92% overall
+                            last_percent = 15 + (pct as f32 * 0.77) as u8;
+                            last_stage = format!("Flashing... {}%", pct);
+                        }
+                    }
+                }
+            } else if trimmed.contains("Hash of data verified") {
+                last_stage = "Verifying checksum...".to_string();
+                last_percent = 95;
+            } else if trimmed.contains("Leaving") || trimmed.contains("Hard resetting") {
+                last_stage = "Resetting ESP32 into app mode...".to_string();
+                last_percent = 99;
+            }
+
+            if !last_stage.is_empty() {
+                on_progress(FlashProgress {
+                    stage: last_stage.clone(),
+                    percent: last_percent,
+                    speed_kbs: 0.0,
+                    bytes_written: 0,
+                    bytes_total: 0,
+                });
+            }
+        }
+
+        let status = child.wait().map_err(|e| format!("esptool process error: {}", e))?;
+
+        if !status.success() {
+            return Err(format!(
+                "esptool exited with error code {:?}. Check that:\n\
+                 • The correct COM port is selected\n\
+                 • No other program (Arduino IDE, Serial Monitor) is using the port\n\
+                 • Your USB cable supports data (not charge-only)",
+                status.code()
+            ));
+        }
+
+        on_progress(FlashProgress {
+            stage: "✅ Firmware flashed successfully! ESP32 is restarting...".to_string(),
+            percent: 100,
+            speed_kbs: 0.0,
+            bytes_written: 0,
+            bytes_total: 0,
+        });
+
+        Ok(())
+    }
 }
 
 impl DeviceFlasher for Esp32Flasher {
     fn detect_chip(&mut self) -> Result<ChipDossier, String> {
-        // Return runtime-detected silicon specs for standard ESP32
-        // If real esptool is installed on host, this can query esptool chip_id
         Ok(ChipDossier::default_esp32_d0wd())
     }
 
     fn erase_flash(&mut self, on_progress: Box<dyn Fn(FlashProgress) + Send>) -> Result<(), String> {
+        let python = Self::python_cmd();
         on_progress(FlashProgress {
-            stage: "Resetting into ROM Bootloader...".to_string(),
+            stage: format!("Erasing flash on {}...", self.port_name),
             percent: 10,
             speed_kbs: 0.0,
             bytes_written: 0,
             bytes_total: 0,
         });
-        let _ = self.pulse_bootloader_reset();
 
-        on_progress(FlashProgress {
-            stage: "Erasing flash sectors...".to_string(),
-            percent: 45,
-            speed_kbs: 0.0,
-            bytes_written: 0,
-            bytes_total: 0,
-        });
-        thread::sleep(Duration::from_millis(1200));
+        let status = Command::new(&python)
+            .args([
+                "-m", "esptool",
+                "--chip", "esp32",
+                "--port", &self.port_name,
+                "--baud", &self.baud_rate.to_string(),
+                "erase_flash",
+            ])
+            .status()
+            .map_err(|e| format!("Failed to launch esptool: {}", e))?;
+
+        if !status.success() {
+            return Err("esptool erase_flash failed. Check port and connection.".to_string());
+        }
 
         on_progress(FlashProgress {
             stage: "Flash erased successfully".to_string(),
@@ -97,13 +249,12 @@ impl DeviceFlasher for Esp32Flasher {
             bytes_total: 0,
         });
 
-        let _ = self.pulse_normal_reset();
         Ok(())
     }
 
     fn write_image(
         &mut self,
-        offset: u32,
+        _offset: u32,
         data: &[u8],
         on_progress: Box<dyn Fn(FlashProgress) + Send>,
     ) -> Result<(), String> {
@@ -111,48 +262,48 @@ impl DeviceFlasher for Esp32Flasher {
             return Err("Cannot flash empty binary image".to_string());
         }
 
+        // Write data to a temp file, then flash it via esptool
+        let tmp_path = std::env::temp_dir().join("pixelforge_flash_tmp.bin");
+        std::fs::write(&tmp_path, data)
+            .map_err(|e| format!("Failed to write temp firmware file: {}", e))?;
+
+        let python = Self::python_cmd();
+
         on_progress(FlashProgress {
-            stage: format!("Connecting & putting ESP32 into download mode for offset 0x{:X}...", offset),
+            stage: format!("Connecting to ESP32 on {}...", self.port_name),
             percent: 5,
             speed_kbs: 0.0,
             bytes_written: 0,
             bytes_total: data.len(),
         });
-        let _ = self.pulse_bootloader_reset();
 
-        let total = data.len();
-        let chunk_size = 4096;
-        let mut written = 0;
-        let start_time = Instant::now();
+        let status = Command::new(&python)
+            .args([
+                "-m", "esptool",
+                "--chip", "esp32",
+                "--port", &self.port_name,
+                "--baud", &self.baud_rate.to_string(),
+                "write_flash",
+                "0x10000",
+                tmp_path.to_str().unwrap_or("firmware.bin"),
+            ])
+            .status()
+            .map_err(|e| format!("Failed to launch esptool: {}", e))?;
 
-        while written < total {
-            let next_chunk = std::cmp::min(chunk_size, total - written);
-            written += next_chunk;
+        let _ = std::fs::remove_file(&tmp_path);
 
-            let elapsed_secs = start_time.elapsed().as_secs_f32().max(0.001);
-            let speed_kbs = (written as f32 / 1024.0) / elapsed_secs;
-            let percent = ((written as f32 / total as f32) * 90.0) as u8 + 5;
-
-            on_progress(FlashProgress {
-                stage: format!("Writing to 0x{:X} ({}/{} KB)...", offset, written / 1024, total / 1024),
-                percent,
-                speed_kbs,
-                bytes_written: written,
-                bytes_total: total,
-            });
-
-            thread::sleep(Duration::from_millis(25));
+        if !status.success() {
+            return Err("esptool write_flash failed. Check port and connection.".to_string());
         }
 
         on_progress(FlashProgress {
-            stage: "Verifying checksum & resetting device...".to_string(),
+            stage: "✅ Firmware written successfully!".to_string(),
             percent: 100,
-            speed_kbs: (total as f32 / 1024.0) / start_time.elapsed().as_secs_f32().max(0.001),
-            bytes_written: total,
-            bytes_total: total,
+            speed_kbs: 0.0,
+            bytes_written: data.len(),
+            bytes_total: data.len(),
         });
 
-        let _ = self.pulse_normal_reset();
         Ok(())
     }
 

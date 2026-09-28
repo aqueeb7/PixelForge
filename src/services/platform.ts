@@ -133,6 +133,62 @@ export async function sendFrame(bitmapData: Uint8Array | number[]): Promise<void
   return safeInvoke<void>('send_frame', { bitmapData: data }, () => {})
 }
 
+export async function uploadAndPlayReel(frames: Uint8Array[], targetFps = 15): Promise<number> {
+  const frameArrays = frames.map((f) => Array.from(f))
+  return safeInvoke<number>(
+    'upload_and_play_reel',
+    { frames: frameArrays, targetFps },
+    () => frames.length
+  )
+}
+
+export async function stopDeviceReel(): Promise<void> {
+  return safeInvoke<void>('stop_device_reel', undefined, () => {})
+}
+
+export interface FlashProgressEvent {
+  stage: string
+  percent: number
+  speed_kbs: number
+  bytes_written: number
+  bytes_total: number
+}
+
+/**
+ * 1-Click native firmware flasher for ESP32.
+ * Flashes the bundled pre-compiled PixelForge firmware directly using esptool.
+ * No Arduino IDE or manual build step required.
+ */
+export async function flashPixelforgeFirmware(
+  port?: string,
+  onProgress?: (progress: FlashProgressEvent) => void
+): Promise<string> {
+  let unlisten: (() => void) | null = null
+
+  if (isTauri() && onProgress) {
+    try {
+      const { listen } = await import('@tauri-apps/api/event')
+      unlisten = await listen<FlashProgressEvent>('firmware-flash-progress', (event) => {
+        onProgress(event.payload)
+      })
+    } catch (e) {
+      console.warn('Failed to listen to firmware-flash-progress event:', e)
+    }
+  }
+
+  try {
+    return await safeInvoke<string>(
+      'flash_pixelforge_firmware',
+      { port: port || null },
+      () => 'Simulation: Firmware flashed successfully'
+    )
+  } finally {
+    if (unlisten) {
+      unlisten()
+    }
+  }
+}
+
 /**
  * Returns the deterministic 1024-byte canonical test pattern:
  * - 1px outer border

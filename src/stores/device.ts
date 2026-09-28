@@ -30,9 +30,16 @@ export const useDeviceStore = defineStore('device', () => {
   const activeFrame = ref<Uint8Array | null>(null)
   const autoReconnect = ref<boolean>(true)
 
+  const isPinging = ref<boolean>(false)
+  const isRebooting = ref<boolean>(false)
+  const isDisconnecting = ref<boolean>(false)
+  const isClearing = ref<boolean>(false)
+  const isRefreshingPorts = ref<boolean>(false)
+
   let telemetryInterval: ReturnType<typeof setInterval> | null = null
 
   async function refreshPorts() {
+    isRefreshingPorts.value = true
     try {
       errorMessage.value = null
       const list = await apiListPorts()
@@ -42,6 +49,8 @@ export const useDeviceStore = defineStore('device', () => {
       }
     } catch (e) {
       errorMessage.value = `Failed to list serial ports: ${e}`
+    } finally {
+      isRefreshingPorts.value = false
     }
   }
 
@@ -149,17 +158,23 @@ export const useDeviceStore = defineStore('device', () => {
   }
 
   async function restart(hard = false) {
-    if (status.value !== 'connected') return
+    if (status.value !== 'connected' || isRebooting.value) return
+    isRebooting.value = true
     try {
       await apiRestartDevice(hard)
       const monitorStore = useMonitorStore()
       monitorStore.addLog(`[SYSTEM] Device ${hard ? 'hard' : 'soft'} restart initiated`, 'system')
+      await new Promise((r) => setTimeout(r, 1200))
     } catch (e) {
       errorMessage.value = `Restart failed: ${e}`
+    } finally {
+      isRebooting.value = false
     }
   }
 
   async function disconnect() {
+    if (isDisconnecting.value) return
+    isDisconnecting.value = true
     stopTelemetryPolling()
     try {
       await apiDisconnectDevice()
@@ -172,11 +187,13 @@ export const useDeviceStore = defineStore('device', () => {
       telemetry.value = null
       lastPingLatency.value = null
       errorMessage.value = null
+      isDisconnecting.value = false
     }
   }
 
   async function ping(): Promise<number | null> {
-    if (status.value !== 'connected') return null
+    if (status.value !== 'connected' || isPinging.value) return null
+    isPinging.value = true
     errorMessage.value = null
     try {
       const latency = await apiPingDevice()
@@ -186,18 +203,23 @@ export const useDeviceStore = defineStore('device', () => {
       errorMessage.value = `Ping failed: ${e}`
       status.value = 'error'
       return null
+    } finally {
+      isPinging.value = false
     }
   }
 
   async function clear() {
     activeFrame.value = new Uint8Array(1024)
-    if (status.value !== 'connected') return
+    if (status.value !== 'connected' || isClearing.value) return
+    isClearing.value = true
     errorMessage.value = null
     try {
       await apiClearDisplay()
     } catch (e) {
       errorMessage.value = `Clear display failed: ${e}`
       status.value = 'error'
+    } finally {
+      isClearing.value = false
     }
   }
 
@@ -249,6 +271,11 @@ export const useDeviceStore = defineStore('device', () => {
     errorMessage,
     activeFrame,
     autoReconnect,
+    isPinging,
+    isRebooting,
+    isDisconnecting,
+    isClearing,
+    isRefreshingPorts,
     refreshPorts,
     connect,
     disconnect,

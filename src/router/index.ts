@@ -17,7 +17,7 @@ const router = createRouter({
     },
     // Placeholder routes — components will be implemented in later specs
     { path: '/draw',      name: 'draw',      component: () => import('../views/DrawView.vue') },
-    { path: '/video',     name: 'video',     component: () => import('../views/PlaceholderView.vue') },
+    { path: '/video',     name: 'video',     component: () => import('../views/VideoView.vue') },
     { path: '/animation', name: 'animation', component: () => import('../views/PlaceholderView.vue') },
     { path: '/hardware',  name: 'hardware',  component: () => import('../views/HardwareView.vue') },
     { path: '/devices',   redirect: '/hardware' },

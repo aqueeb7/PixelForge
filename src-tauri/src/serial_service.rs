@@ -11,6 +11,8 @@ use crate::protocol::{
 };
 
 const DEFAULT_TIMEOUT_MS: u64 = 1500;
+/// Timeout for individual reel frame uploads (1026-byte payload at 115200 baud ≈ 90ms tx + 50ms processing + margin)
+const FRAME_UPLOAD_TIMEOUT_MS: u64 = 3000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerialPortDescription {
@@ -79,7 +81,7 @@ impl SerialManager {
         let _ = self.disconnect();
 
         let port = serialport::new(port_name, baud_rate)
-            .timeout(Duration::from_millis(DEFAULT_TIMEOUT_MS))
+            .timeout(Duration::from_millis(FRAME_UPLOAD_TIMEOUT_MS))
             .open()
             .map_err(|e| format!("Failed to open port '{}': {}", port_name, e))?;
 
@@ -234,6 +236,70 @@ impl SerialManager {
         }
     }
 
+    /// Starts uploading a standalone animation reel to the device RAM.
+    /// Returns the maximum number of frames the device has allocated space for.
+    pub fn start_reel_upload(&mut self, frame_count: u16, target_fps: u16) -> Result<usize, String> {
+        let payload = [
+            (frame_count >> 8) as u8,
+            (frame_count & 0xFF) as u8,
+            (target_fps >> 8) as u8,
+            (target_fps & 0xFF) as u8,
+        ];
+        let resp = self.send_command_internal(Command::StartReelUpload.as_u8(), &payload)?;
+        if resp.msg_type == ResponseType::ReelUploadAck as u8 {
+            if resp.payload.len() >= 2 {
+                let accepted = ((resp.payload[0] as usize) << 8) | (resp.payload[1] as usize);
+                Ok(accepted)
+            } else {
+                Ok(frame_count as usize)
+            }
+        } else {
+            Err(format!("Device failed to start reel upload (0x{:02X})", resp.msg_type))
+        }
+    }
+
+    /// Appends a single frame to the autonomous reel storage.
+    pub fn append_reel_frame(&mut self, frame_idx: u16, bitmap_data: &[u8]) -> Result<(), String> {
+        if bitmap_data.len() != CANONICAL_FRAME_SIZE {
+            return Err("Frame size must be exactly 1024 bytes".to_string());
+        }
+        let mut payload = Vec::with_capacity(2 + CANONICAL_FRAME_SIZE);
+        payload.push((frame_idx >> 8) as u8);
+        payload.push((frame_idx & 0xFF) as u8);
+        payload.extend_from_slice(bitmap_data);
+
+        let resp = self.send_command_with_timeout(Command::AppendReelFrame.as_u8(), &payload, FRAME_UPLOAD_TIMEOUT_MS)?;
+        if resp.msg_type == ResponseType::ReelFrameAck as u8 {
+            Ok(())
+        } else {
+            Err(format!("Device failed to append frame {} (0x{:02X})", frame_idx, resp.msg_type))
+        }
+    }
+
+    /// Instructs the device to begin playing the stored reel on infinite loop.
+    pub fn play_reel(&mut self, target_fps: u16) -> Result<(), String> {
+        let payload = [
+            (target_fps >> 8) as u8,
+            (target_fps & 0xFF) as u8,
+        ];
+        let resp = self.send_command_internal(Command::PlayReel.as_u8(), &payload)?;
+        if resp.msg_type == ResponseType::PlayReelAck as u8 {
+            Ok(())
+        } else {
+            Err(format!("Device failed to play reel (0x{:02X})", resp.msg_type))
+        }
+    }
+
+    /// Stops autonomous reel playback.
+    pub fn stop_reel(&mut self) -> Result<(), String> {
+        let resp = self.send_command_internal(Command::StopReel.as_u8(), &[])?;
+        if resp.msg_type == ResponseType::StopReelAck as u8 {
+            Ok(())
+        } else {
+            Err(format!("Device failed to stop reel (0x{:02X})", resp.msg_type))
+        }
+    }
+
     /// Internal helper to transmit a packet and await a parsed response packet.
     /// Manages read timeouts and detects cable disconnects.
     fn send_command_internal(&mut self, cmd: u8, payload: &[u8]) -> Result<Packet, String> {
@@ -246,6 +312,9 @@ impl SerialManager {
             Some(p) => p,
             None => return Err("Not connected to any serial port".to_string()),
         };
+
+        // Discard any stale bytes from background telemetry polling
+        let _ = port.clear(serialport::ClearBuffer::Input);
 
         let packet = encode_packet(cmd, payload);
         port.write_all(&packet).map_err(|e| {
@@ -260,26 +329,42 @@ impl SerialManager {
         let mut read_buf = Vec::with_capacity(512);
         let mut chunk = [0u8; 128];
 
+        let expected_ack = cmd | 0x80;
         while start.elapsed() < timeout {
             match port.read(&mut chunk) {
                 Ok(n) if n > 0 => {
                     read_buf.extend_from_slice(&chunk[..n]);
-                    match decode_packet(&read_buf) {
-                        Ok((packet, _consumed)) => return Ok(packet),
-                        Err(ProtocolError::Incomplete) => continue,
-                        Err(e) => {
-                            // If invalid CRC or EOF, keep scanning for next SOF
-                            read_buf.retain(|&b| b != crate::protocol::SOF);
-                            return Err(format!("Protocol error: {}", e));
+                    loop {
+                        match decode_packet(&read_buf) {
+                            Ok((packet, consumed)) => {
+                                read_buf.drain(0..consumed);
+                                if packet.msg_type == ResponseType::Error as u8 {
+                                    let err_msg = String::from_utf8_lossy(&packet.payload);
+                                    return Err(format!("Device returned error: {}", err_msg));
+                                }
+                                if packet.msg_type == expected_ack {
+                                    return Ok(packet);
+                                }
+                                // Interleaved background telemetry packet drained; continue processing buffer
+                            }
+                            Err(ProtocolError::Incomplete) => break,
+                            Err(_) => {
+                                // If noise/framing error, skip past bad SOF and continue scanning
+                                if let Some(sof_pos) = read_buf.iter().position(|&b| b == crate::protocol::SOF) {
+                                    read_buf.drain(0..=sof_pos);
+                                } else {
+                                    read_buf.clear();
+                                }
+                                break;
+                            }
                         }
                     }
                 }
                 Ok(_) => {
-                    std::thread::sleep(Duration::from_millis(10));
+                    std::thread::sleep(Duration::from_millis(5));
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
-                    // Try again until timeout window expires
-                    std::thread::sleep(Duration::from_millis(10));
+                    std::thread::sleep(Duration::from_millis(5));
                 }
                 Err(e) => {
                     return Err(format!("Serial read failed (device unplugged?): {}", e));

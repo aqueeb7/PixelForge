@@ -11,6 +11,16 @@ static uint32_t totalFramesRendered = 0;
 static uint32_t lastFrameRenderTime = 0;
 static float smoothedFps = 0.0f;
 
+// Autonomous Reel Animation Engine Variables
+#define MAX_REEL_FRAMES 150
+static uint8_t* reelFrames[MAX_REEL_FRAMES] = {nullptr};
+static uint16_t reelFrameCount = 0;
+static uint16_t reelTargetFps = 15;
+static uint32_t reelFrameIntervalMs = 66;
+static bool isPlayingReel = false;
+static uint16_t currentReelFrameIdx = 0;
+static uint32_t lastReelFrameTime = 0;
+
 void handleCommand(const RxPacket& packet) {
     switch (packet.msgType) {
         case CMD_PING:
@@ -73,6 +83,86 @@ void handleCommand(const RxPacket& packet) {
             break;
         }
 
+        case CMD_START_REEL_UPLOAD: {
+            if (packet.length >= 4) {
+                isPlayingReel = false;
+                for (int i = 0; i < MAX_REEL_FRAMES; i++) {
+                    if (reelFrames[i] != nullptr) {
+                        free(reelFrames[i]);
+                        reelFrames[i] = nullptr;
+                    }
+                }
+                uint16_t reqCount = ((uint16_t)packet.payload[0] << 8) | packet.payload[1];
+                uint16_t reqFps = ((uint16_t)packet.payload[2] << 8) | packet.payload[3];
+                reelFrameCount = min((int)reqCount, MAX_REEL_FRAMES);
+                reelTargetFps = reqFps > 0 ? reqFps : 15;
+                reelFrameIntervalMs = 1000 / reelTargetFps;
+
+                int allocated = 0;
+                for (int i = 0; i < reelFrameCount; i++) {
+                    reelFrames[i] = (uint8_t*)malloc(CANONICAL_FRAME_SIZE);
+                    if (reelFrames[i] != nullptr) {
+                        allocated++;
+                    } else {
+                        reelFrameCount = allocated;
+                        break;
+                    }
+                }
+                currentReelFrameIdx = 0;
+                if (reelFrameCount > 0) {
+                    uint8_t ackPayload[2] = {
+                        (uint8_t)(reelFrameCount >> 8),
+                        (uint8_t)(reelFrameCount & 0xFF)
+                    };
+                    protocol.sendPacket(RESP_REEL_UPLOAD_ACK, ackPayload, 2);
+                } else {
+                    protocol.sendError(0x05, "Insufficient RAM on ESP32 for reel");
+                }
+            } else {
+                protocol.sendError(0x02, "Invalid reel start payload");
+            }
+            break;
+        }
+
+        case CMD_APPEND_REEL_FRAME: {
+            if (packet.length >= 2 + CANONICAL_FRAME_SIZE) {
+                uint16_t fIdx = ((uint16_t)packet.payload[0] << 8) | packet.payload[1];
+                if (fIdx < reelFrameCount && reelFrames[fIdx] != nullptr) {
+                    memcpy(reelFrames[fIdx], &packet.payload[2], CANONICAL_FRAME_SIZE);
+                    protocol.sendPacket(RESP_REEL_FRAME_ACK, nullptr, 0);
+                } else if (fIdx >= reelFrameCount) {
+                    // Gracefully absorb surplus frames that exceed ESP32 capacity
+                    protocol.sendPacket(RESP_REEL_FRAME_ACK, nullptr, 0);
+                } else {
+                    protocol.sendError(0x03, "Reel frame index out of range or unallocated");
+                }
+            } else {
+                protocol.sendError(0x04, "Invalid reel frame payload length");
+            }
+            break;
+        }
+
+        case CMD_PLAY_REEL: {
+            if (packet.length >= 2) {
+                uint16_t reqFps = ((uint16_t)packet.payload[0] << 8) | packet.payload[1];
+                if (reqFps > 0) {
+                    reelTargetFps = reqFps;
+                    reelFrameIntervalMs = 1000 / reelTargetFps;
+                }
+            }
+            isPlayingReel = true;
+            currentReelFrameIdx = 0;
+            lastReelFrameTime = millis();
+            protocol.sendPacket(RESP_PLAY_REEL_ACK, nullptr, 0);
+            break;
+        }
+
+        case CMD_STOP_REEL: {
+            isPlayingReel = false;
+            protocol.sendPacket(RESP_STOP_REEL_ACK, nullptr, 0);
+            break;
+        }
+
         default:
             protocol.sendError(0x01, "Unsupported command");
             break;
@@ -94,5 +184,18 @@ void loop() {
     if (protocol.hasPacket()) {
         handleCommand(protocol.getPacket());
         protocol.consumePacket();
+    }
+
+    // Autonomous Reel Playback Engine
+    if (isPlayingReel && reelFrameCount > 0) {
+        uint32_t now = millis();
+        if (now - lastReelFrameTime >= reelFrameIntervalMs) {
+            lastReelFrameTime = now;
+            if (reelFrames[currentReelFrameIdx] != nullptr) {
+                display.renderCanonicalFrame(reelFrames[currentReelFrameIdx]);
+            }
+            currentReelFrameIdx = (currentReelFrameIdx + 1) % reelFrameCount;
+            totalFramesRendered++;
+        }
     }
 }

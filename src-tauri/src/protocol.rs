@@ -17,6 +17,10 @@ pub enum Command {
     ClearDisplay = 0x04,
     GetTelemetry = 0x05,
     RestartDevice = 0x06,
+    StartReelUpload = 0x07,
+    AppendReelFrame = 0x08,
+    PlayReel = 0x09,
+    StopReel = 0x0A,
 }
 
 impl Command {
@@ -34,6 +38,10 @@ pub enum ResponseType {
     ClearAck = 0x84,
     TelemetryData = 0x85,
     RestartAck = 0x86,
+    ReelUploadAck = 0x87,
+    ReelFrameAck = 0x88,
+    PlayReelAck = 0x89,
+    StopReelAck = 0x8A,
     Error = 0xFF,
 }
 
@@ -46,6 +54,10 @@ impl ResponseType {
             0x84 => Some(ResponseType::ClearAck),
             0x85 => Some(ResponseType::TelemetryData),
             0x86 => Some(ResponseType::RestartAck),
+            0x87 => Some(ResponseType::ReelUploadAck),
+            0x88 => Some(ResponseType::ReelFrameAck),
+            0x89 => Some(ResponseType::PlayReelAck),
+            0x8A => Some(ResponseType::StopReelAck),
             0xFF => Some(ResponseType::Error),
             _ => None,
         }

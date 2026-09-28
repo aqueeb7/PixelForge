@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { FlashState } from '../types/monitor'
-import { eraseDeviceFlash, flashFirmware } from '../services/platform'
+import { eraseDeviceFlash, flashFirmware, flashPixelforgeFirmware } from '../services/platform'
+import { useDeviceStore } from './device'
 
 export const useFlasherStore = defineStore('flasher', () => {
   const flashState = ref<FlashState>({
@@ -48,25 +49,51 @@ export const useFlasherStore = defineStore('flasher', () => {
       return
     }
 
+    const deviceStore = useDeviceStore()
+    const wasConnected = deviceStore.status === 'connected'
+
+    if (wasConnected) {
+      flashState.value = {
+        status: 'connecting',
+        progress: 1,
+        stage: 'Releasing active serial connection for flashing...',
+        speedKbs: 0,
+        bytesWritten: 0,
+        bytesTotal: 300832,
+      }
+      await deviceStore.disconnect()
+      await new Promise((r) => setTimeout(r, 600))
+    }
+
     flashState.value = {
       status: 'connecting',
-      progress: 5,
-      stage: 'Resetting ESP32 into ROM bootloader...',
+      progress: 2,
+      stage: 'Connecting to ESP32 ROM bootloader...',
       speedKbs: 0,
       bytesWritten: 0,
-      bytesTotal: 65536,
+      bytesTotal: 300832,
     }
 
     try {
-      flashState.value.status = 'writing'
-      flashState.value.stage = 'Flashing official PixelForge firmware...'
-      flashState.value.progress = 30
-
-      await flashFirmware(port, undefined, 0x10000, selectedBaud.value)
+      await flashPixelforgeFirmware(port, (p) => {
+        flashState.value.progress = p.percent
+        flashState.value.stage = p.stage
+        if (p.percent > 10 && p.percent < 95) {
+          flashState.value.status = 'writing'
+        } else if (p.percent >= 95 && p.percent < 100) {
+          flashState.value.status = 'verifying'
+        }
+      })
 
       flashState.value.status = 'done'
       flashState.value.progress = 100
-      flashState.value.stage = 'Firmware flashed & verified successfully!'
+      flashState.value.stage = '✅ Official firmware flashed & verified successfully!'
+
+      if (wasConnected) {
+        setTimeout(async () => {
+          await deviceStore.connect(port)
+        }, 2000)
+      }
     } catch (e) {
       flashState.value.status = 'error'
       flashState.value.errorMessage = String(e)
@@ -83,6 +110,13 @@ export const useFlasherStore = defineStore('flasher', () => {
       flashState.value.status = 'error'
       flashState.value.errorMessage = 'Please choose a .bin file to flash'
       return
+    }
+
+    const deviceStore = useDeviceStore()
+    const wasConnected = deviceStore.status === 'connected'
+    if (wasConnected) {
+      await deviceStore.disconnect()
+      await new Promise((r) => setTimeout(r, 600))
     }
 
     flashState.value = {
@@ -104,6 +138,12 @@ export const useFlasherStore = defineStore('flasher', () => {
       flashState.value.status = 'done'
       flashState.value.progress = 100
       flashState.value.stage = 'Custom image flashed successfully!'
+
+      if (wasConnected) {
+        setTimeout(async () => {
+          await deviceStore.connect(port)
+        }, 2000)
+      }
     } catch (e) {
       flashState.value.status = 'error'
       flashState.value.errorMessage = String(e)
@@ -115,6 +155,13 @@ export const useFlasherStore = defineStore('flasher', () => {
       flashState.value.status = 'error'
       flashState.value.errorMessage = 'Please select a COM port first'
       return
+    }
+
+    const deviceStore = useDeviceStore()
+    const wasConnected = deviceStore.status === 'connected'
+    if (wasConnected) {
+      await deviceStore.disconnect()
+      await new Promise((r) => setTimeout(r, 600))
     }
 
     flashState.value = {
