@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDeviceStore } from '../../stores/device'
 
 const deviceStore = useDeviceStore()
@@ -14,8 +14,9 @@ const isConnected = computed(() => deviceStore.status === 'connected')
 const telemetry = computed(() => deviceStore.telemetry)
 const chipDossier = computed(() => deviceStore.chipDossier)
 
-// Active inspected block
+// Active inspected block & floating dossier state
 const selectedBlockId = ref<string>('spiffs')
+const isDossierOpen = ref<boolean>(false)
 
 interface TreemapBlock {
   id: string
@@ -389,9 +390,34 @@ function calculateDisplayPercent(block: TreemapBlock): string {
   return `${fill}%`
 }
 
-function selectBlock(id: string) {
+function selectBlock(id: string, openDossier = false) {
   selectedBlockId.value = id
+  if (openDossier) {
+    isDossierOpen.value = true
+  }
 }
+
+function closeDossier() {
+  isDossierOpen.value = false
+}
+
+function toggleDossier() {
+  isDossierOpen.value = !isDossierOpen.value
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && isDossierOpen.value) {
+    closeDossier()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
 </script>
 
 <template>
@@ -500,6 +526,16 @@ function selectBlock(id: string) {
         </div>
 
         <div class="toolbar-controls">
+          <!-- Floating Inspector Toggle -->
+          <button
+            class="compact-btn"
+            :class="{ 'compact-btn--active': isDossierOpen }"
+            title="Toggle Floating Block Inspector (Esc to close)"
+            @click="toggleDossier"
+          >
+            📑 Inspector {{ isDossierOpen ? '●' : '' }}
+          </button>
+
           <!-- Creator vs CS Toggle -->
           <div class="compact-toggle-group">
             <button
@@ -508,7 +544,7 @@ function selectBlock(id: string) {
               title="Creator Mode: Plain English labels & animation capacity"
               @click="detailLevel = 'creator'"
             >
-              👤 Creator View
+              👤 Creator
             </button>
             <button
               class="compact-btn"
@@ -525,21 +561,21 @@ function selectBlock(id: string) {
             <button
               class="compact-btn"
               :class="{ 'compact-btn--active': viewMode === 'flash' }"
-              @click="viewMode = 'flash'; selectedBlockId = 'spiffs'"
+              @click="viewMode = 'flash'; selectBlock('spiffs', isDossierOpen)"
             >
               💾 Flash
             </button>
             <button
               class="compact-btn"
               :class="{ 'compact-btn--active': viewMode === 'sram' }"
-              @click="viewMode = 'sram'; selectedBlockId = 'free_heap'"
+              @click="viewMode = 'sram'; selectBlock('free_heap', isDossierOpen)"
             >
               ⚡ RAM
             </button>
             <button
               class="compact-btn"
               :class="{ 'compact-btn--active': viewMode === 'unified' }"
-              @click="viewMode = 'unified'; selectedBlockId = 'spiffs'"
+              @click="viewMode = 'unified'; selectBlock('spiffs', isDossierOpen)"
             >
               🧩 All
             </button>
@@ -547,202 +583,258 @@ function selectBlock(id: string) {
         </div>
       </div>
 
-      <!-- Main Responsive Heatmap Grid -->
-      <div class="heatmap-workspace-grid">
-        <!-- Left: Proportional Tiles Canvas -->
-        <div class="heatmap-canvas-card">
-          <!-- Thicker Multi-Colored Memory Distribution Bar (Glass Prism Style) -->
-          <div class="distribution-bar-wrap" title="Proportional distribution of memory across chip">
-            <div
-              v-for="b in currentBlocks"
-              :key="b.id"
-              class="dist-segment"
-              :style="{
-                width: `${(b.sizeBytes / currentTotalBytes) * 100}%`,
-                backgroundColor: b.color,
-              }"
-              :title="`${b.friendlyName}: ${formatBytes(b.sizeBytes)} (${calculatePercent(b.sizeBytes)})`"
-            >
-              <span v-if="((b.sizeBytes / currentTotalBytes) * 100) > 12" class="dist-label font-mono">
-                {{ b.friendlyName }}
-              </span>
-            </div>
+      <!-- ========================================================= -->
+      <!-- DEDICATED SILICON MEMORY DISTRIBUTION PRISM (Prominent)   -->
+      <!-- ========================================================= -->
+      <section class="memory-distribution-section">
+        <div class="distribution-header">
+          <div class="dist-header-left">
+            <span class="dist-icon">🌈</span>
+            <span class="dist-title">Silicon Memory Topology</span>
+            <span class="dist-scope-badge font-mono">
+              {{ viewMode === 'flash' ? `Flash 4.0 MB` : viewMode === 'sram' ? `SRAM 328 KB` : `Unified 4.33 MB` }}
+            </span>
           </div>
+          <div class="dist-header-right font-mono">
+            <span class="dist-hint">💡 Click any segment or card to open details</span>
+          </div>
+        </div>
 
-          <!-- Proportional Responsive Tiles -->
-          <div class="tiles-grid">
+        <!-- Thicker Glass Prism Distribution Bar (24px) -->
+        <div class="distribution-bar-wrap" role="progressbar" title="Proportional distribution of memory across chip">
+          <div
+            v-for="b in currentBlocks"
+            :key="b.id"
+            class="dist-segment"
+            :class="{ 'dist-segment--active': b.id === selectedBlockId }"
+            :style="{
+              width: `${(b.sizeBytes / currentTotalBytes) * 100}%`,
+              backgroundColor: b.color,
+            }"
+            :title="`${b.friendlyName}: ${formatBytes(b.sizeBytes)} (${calculatePercent(b.sizeBytes)})`"
+            @click="selectBlock(b.id, true)"
+          >
+            <div class="segment-shine" />
+            <span v-if="((b.sizeBytes / currentTotalBytes) * 100) > 10" class="dist-label font-mono">
+              {{ b.friendlyName }}
+            </span>
+            <span v-else-if="((b.sizeBytes / currentTotalBytes) * 100) > 4" class="dist-label font-mono">
+              {{ formatBytes(b.sizeBytes) }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Informative Quick Legend Strip -->
+        <div class="distribution-legend-strip font-mono">
+          <button
+            v-for="b in currentBlocks"
+            :key="`legend-${b.id}`"
+            class="legend-item"
+            :class="{ 'legend-item--active': b.id === selectedBlockId }"
+            :title="`Inspect ${b.friendlyName} (${formatBytes(b.sizeBytes)})`"
+            @click="selectBlock(b.id, true)"
+          >
+            <span class="legend-color-dot" :style="{ backgroundColor: b.color }" />
+            <span class="legend-name">{{ b.friendlyName }}</span>
+            <span class="legend-val text-muted">{{ formatBytes(b.sizeBytes) }}</span>
+            <span class="legend-pct" :style="{ color: b.color }">({{ calculatePercent(b.sizeBytes) }})</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- FULL-WIDTH TILES WORKSPACE (Spacious Layout)             -->
+      <!-- ========================================================= -->
+      <div class="heatmap-workspace-area">
+        <!-- Proportional Responsive Tiles Grid (100% Horizontal Space) -->
+        <div class="tiles-grid">
+          <div
+            v-for="block in currentBlocks"
+            :key="block.id"
+            class="finviz-tile"
+            :class="{
+              'tile--active': block.id === selectedBlockId,
+              [`cat--${block.category}`]: true,
+            }"
+            :style="{
+              borderTopColor: block.color,
+            }"
+            @mouseenter="selectBlock(block.id, false)"
+            @click="selectBlock(block.id, true)"
+          >
+            <!-- Glass Specular Reflection Highlight -->
+            <div class="tile-glass-specular" />
+
+            <!-- Vertical Animated Liquid Fill with Subtle Calm Wave (Water in Glass Container) -->
             <div
-              v-for="block in currentBlocks"
-              :key="block.id"
-              class="finviz-tile"
-              :class="{
-                'tile--active': block.id === selectedBlockId,
-                [`cat--${block.category}`]: true,
-              }"
+              class="tile-liquid-fill"
               :style="{
-                borderTopColor: block.color,
+                height: `${calculateLiquidHeight(block)}%`,
+                background: `linear-gradient(180deg, ${block.color}45 0%, ${block.color}25 45%, ${block.color}12 100%)`,
+                boxShadow: `0 -2px 14px ${block.color}50, inset 0 1px 0 rgba(255, 255, 255, 0.25)`,
               }"
-              @mouseenter="selectBlock(block.id)"
-              @click="selectBlock(block.id)"
             >
-              <!-- Glass Specular Reflection Highlight -->
-              <div class="tile-glass-specular" />
-
-              <!-- Vertical Animated Liquid Fill with Subtle Calm Wave (Water in Glass Container) -->
-              <div
-                class="tile-liquid-fill"
-                :style="{
-                  height: `${calculateLiquidHeight(block)}%`,
-                  background: `linear-gradient(180deg, ${block.color}45 0%, ${block.color}25 45%, ${block.color}12 100%)`,
-                  boxShadow: `0 -2px 14px ${block.color}50, inset 0 1px 0 rgba(255, 255, 255, 0.25)`,
-                }"
-              >
-                <!-- Subtle Gentle Wave Surface SVG -->
-                <div class="subtle-wave-wrap">
-                  <svg class="subtle-wave-svg" viewBox="0 0 240 14" preserveAspectRatio="none">
-                    <path
-                      class="wave-path wave-path-back"
-                      :fill="block.color"
-                      fill-opacity="0.3"
-                      d="M0,7 C35,2 75,12 120,7 C165,2 205,12 240,7 L240,14 L0,14 Z"
-                    />
-                    <path
-                      class="wave-path wave-path-front"
-                      :fill="block.color"
-                      fill-opacity="0.65"
-                      d="M0,7 C45,12 85,2 120,7 C155,12 195,2 240,7 L240,14 L0,14 Z"
-                    />
-                  </svg>
-                </div>
-
-                <!-- Meniscus Water Surface Glow Line -->
-                <div class="water-surface-line" :style="{ backgroundColor: block.color }" />
+              <!-- Subtle Gentle Wave Surface SVG -->
+              <div class="subtle-wave-wrap">
+                <svg class="subtle-wave-svg" viewBox="0 0 240 14" preserveAspectRatio="none">
+                  <path
+                    class="wave-path wave-path-back"
+                    :fill="block.color"
+                    fill-opacity="0.3"
+                    d="M0,7 C35,2 75,12 120,7 C165,2 205,12 240,7 L240,14 L0,14 Z"
+                  />
+                  <path
+                    class="wave-path wave-path-front"
+                    :fill="block.color"
+                    fill-opacity="0.65"
+                    d="M0,7 C45,12 85,2 120,7 C155,12 195,2 240,7 L240,14 L0,14 Z"
+                  />
+                </svg>
               </div>
 
-              <!-- Floating Percentage Gauge Pill at Water Surface Level on Card Edge -->
+              <!-- Meniscus Water Surface Glow Line -->
+              <div class="water-surface-line" :style="{ backgroundColor: block.color }" />
+            </div>
+
+            <!-- Floating Percentage Gauge Pill at Water Surface Level on Card Edge -->
+            <div
+              class="water-edge-pill-wrap"
+              :style="{
+                bottom: `${calculateLiquidHeight(block)}%`,
+              }"
+            >
               <div
-                class="water-edge-pill-wrap"
+                class="surface-gauge-pill font-mono"
                 :style="{
-                  bottom: `${calculateLiquidHeight(block)}%`,
+                  backgroundColor: block.color,
+                  boxShadow: `0 2px 10px ${block.color}75`,
                 }"
+                :title="`Fill Level: ${calculateDisplayPercent(block)}`"
               >
-                <div
-                  class="surface-gauge-pill font-mono"
-                  :style="{
-                    backgroundColor: block.color,
-                    boxShadow: `0 2px 10px ${block.color}75`,
-                  }"
-                  :title="`Fill Level: ${calculateDisplayPercent(block)}`"
-                >
-                  <span class="pill-dot" />
-                  {{ calculateDisplayPercent(block) }}
+                <span class="pill-dot" />
+                {{ calculateDisplayPercent(block) }}
+              </div>
+            </div>
+
+            <!-- Top Accent Glow Strip -->
+            <div class="tile-glow-strip" :style="{ backgroundColor: block.color }" />
+
+            <!-- Clean Minimalist Tile Content Layer -->
+            <div class="tile-content-layer">
+              <!-- Header: Category & Access -->
+              <div class="tile-header">
+                <div class="tile-cat-badge font-mono" :style="{ color: block.color }">
+                  <span class="cat-dot" :style="{ backgroundColor: block.color }" />
+                  {{ block.category.toUpperCase() }}
                 </div>
+                <span class="tile-access font-mono">{{ block.access }}</span>
               </div>
 
-              <!-- Top Accent Glow Strip -->
-              <div class="tile-glow-strip" :style="{ backgroundColor: block.color }" />
+              <!-- Title Row: Fully Visible, Never Truncated with Dots -->
+              <div class="tile-title-row">
+                <span class="tile-icon">{{ block.icon }}</span>
+                <h5 class="tile-full-title">
+                  {{ detailLevel === 'creator' ? block.friendlyName : block.techName }}
+                </h5>
+              </div>
 
-              <!-- Clean Minimalist Tile Content Layer -->
-              <div class="tile-content-layer">
-                <!-- Header: Category & Access -->
-                <div class="tile-header">
-                  <div class="tile-cat-badge font-mono" :style="{ color: block.color }">
-                    <span class="cat-dot" :style="{ backgroundColor: block.color }" />
-                    {{ block.category.toUpperCase() }}
-                  </div>
-                  <span class="tile-access font-mono">{{ block.access }}</span>
-                </div>
-
-                <!-- Title Row: Fully Visible, Never Truncated with Dots -->
-                <div class="tile-title-row">
-                  <span class="tile-icon">{{ block.icon }}</span>
-                  <h5 class="tile-full-title">
-                    {{ detailLevel === 'creator' ? block.friendlyName : block.techName }}
-                  </h5>
-                </div>
-
-                <!-- Central Metric: Bold Size & Submetric Info -->
-                <div class="tile-metric-block">
-                  <div class="tile-size font-mono">{{ formatBytes(block.sizeBytes) }}</div>
-                  <div class="tile-submetric font-mono">
-                    <span class="submetric-share">{{ calculatePercent(block.sizeBytes) }} share</span>
-                    <span class="submetric-dot">•</span>
-                    <span class="submetric-status">
-                      {{ block.usedBytes > 0 ? `${formatBytes(Math.max(0, block.sizeBytes - block.usedBytes))} free` : '100% free' }}
-                    </span>
-                  </div>
+              <!-- Central Metric: Bold Size & Submetric Info -->
+              <div class="tile-metric-block">
+                <div class="tile-size font-mono">{{ formatBytes(block.sizeBytes) }}</div>
+                <div class="tile-submetric font-mono">
+                  <span class="submetric-share">{{ calculatePercent(block.sizeBytes) }} share</span>
+                  <span class="submetric-dot">•</span>
+                  <span class="submetric-status">
+                    {{ block.usedBytes > 0 ? `${formatBytes(Math.max(0, block.sizeBytes - block.usedBytes))} free` : '100% free' }}
+                  </span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Right: Interactive Block Dossier Panel -->
-        <aside class="block-dossier-card">
-          <!-- Top: Identity & Summary -->
-          <div class="dossier-top">
-            <div class="dossier-header-row">
-              <span class="dossier-icon">{{ activeBlock.icon }}</span>
-              <div class="dossier-names">
-                <div class="dossier-badges">
-                  <span class="badge-cat font-mono" :style="{ color: activeBlock.color }">
-                    {{ activeBlock.category.toUpperCase() }}
-                  </span>
-                  <span class="badge-status" :class="`pill--${activeBlock.status}`">
-                    {{ activeBlock.status.toUpperCase() }}
-                  </span>
+        <!-- ========================================================= -->
+        <!-- FLOATING INTERACTIVE BLOCK DOSSIER (Slides in on Click)   -->
+        <!-- ========================================================= -->
+        <Transition name="dossier-slide">
+          <aside
+            v-if="isDossierOpen"
+            class="block-dossier-card floating-dossier-card"
+          >
+            <!-- Close Button -->
+            <button
+              class="dossier-close-btn"
+              title="Close Dossier Inspector (Esc)"
+              @click="closeDossier"
+            >
+              ✕
+            </button>
+
+            <!-- Top: Identity & Summary -->
+            <div class="dossier-top">
+              <div class="dossier-header-row">
+                <span class="dossier-icon">{{ activeBlock.icon }}</span>
+                <div class="dossier-names">
+                  <div class="dossier-badges">
+                    <span class="badge-cat font-mono" :style="{ color: activeBlock.color }">
+                      {{ activeBlock.category.toUpperCase() }}
+                    </span>
+                    <span class="badge-status" :class="`pill--${activeBlock.status}`">
+                      {{ activeBlock.status.toUpperCase() }}
+                    </span>
+                  </div>
+                  <h4 class="dossier-heading">{{ activeBlock.friendlyName }}</h4>
+                  <span class="dossier-subheading font-mono">{{ activeBlock.techName }}</span>
                 </div>
-                <h4 class="dossier-heading">{{ activeBlock.friendlyName }}</h4>
-                <span class="dossier-subheading font-mono">{{ activeBlock.techName }}</span>
+              </div>
+
+              <div class="plain-summary-card">
+                <p class="summary-text">{{ activeBlock.plainSummary }}</p>
               </div>
             </div>
 
-            <div class="plain-summary-card">
-              <p class="summary-text">{{ activeBlock.plainSummary }}</p>
+            <!-- Middle: 4-Item Compact Metrics Grid -->
+            <div class="dossier-stats-grid">
+              <div class="stat-box">
+                <span class="stat-lbl">ALLOCATED</span>
+                <span class="stat-val font-mono" :style="{ color: activeBlock.color }">
+                  {{ formatBytes(activeBlock.sizeBytes) }}
+                </span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-lbl">CHIP SHARE</span>
+                <span class="stat-val font-mono">{{ calculatePercent(activeBlock.sizeBytes) }}</span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-lbl">CURRENT USAGE</span>
+                <span class="stat-val font-mono">
+                  {{ activeBlock.usedBytes ? formatBytes(activeBlock.usedBytes) : '0 B (Free)' }}
+                </span>
+              </div>
+              <div class="stat-box">
+                <span class="stat-lbl">FREE HEADROOM</span>
+                <span class="stat-val font-mono text-emerald">
+                  {{ formatBytes(Math.max(0, activeBlock.sizeBytes - activeBlock.usedBytes)) }}
+                </span>
+              </div>
             </div>
-          </div>
 
-          <!-- Middle: 4-Item Compact Metrics Grid -->
-          <div class="dossier-stats-grid">
-            <div class="stat-box">
-              <span class="stat-lbl">ALLOCATED</span>
-              <span class="stat-val font-mono" :style="{ color: activeBlock.color }">
-                {{ formatBytes(activeBlock.sizeBytes) }}
-              </span>
+            <!-- Creator Animation Impact Box -->
+            <div class="creator-note-box">
+              <span class="note-badge">CREATOR IMPACT:</span>
+              <p class="note-text">{{ activeBlock.creatorImpact }}</p>
             </div>
-            <div class="stat-box">
-              <span class="stat-lbl">CHIP SHARE</span>
-              <span class="stat-val font-mono">{{ calculatePercent(activeBlock.sizeBytes) }}</span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-lbl">CURRENT USAGE</span>
-              <span class="stat-val font-mono">
-                {{ activeBlock.usedBytes ? formatBytes(activeBlock.usedBytes) : '0 B (Free)' }}
-              </span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-lbl">FREE HEADROOM</span>
-              <span class="stat-val font-mono text-emerald">
-                {{ formatBytes(Math.max(0, activeBlock.sizeBytes - activeBlock.usedBytes)) }}
-              </span>
-            </div>
-          </div>
 
-          <!-- Creator Animation Impact Box -->
-          <div class="creator-note-box">
-            <span class="note-badge">CREATOR IMPACT:</span>
-            <p class="note-text">{{ activeBlock.creatorImpact }}</p>
-          </div>
-
-          <!-- Bottom: Tech Specs Footer -->
-          <div class="tech-footer-box">
-            <div class="tech-header font-mono">
-              <span>BASE: <strong class="text-cyan">{{ activeBlock.addressHex }}</strong></span>
-              <span>END: <strong class="text-cyan">{{ activeBlock.endAddressHex }}</strong></span>
+            <!-- Bottom: Tech Specs Footer -->
+            <div class="tech-footer-box">
+              <div class="tech-header font-mono">
+                <span>BASE: <strong class="text-cyan">{{ activeBlock.addressHex }}</strong></span>
+                <span>END: <strong class="text-cyan">{{ activeBlock.endAddressHex }}</strong></span>
+              </div>
+              <p class="tech-detail-text">{{ activeBlock.techDetail }}</p>
             </div>
-            <p class="tech-detail-text">{{ activeBlock.techDetail }}</p>
-          </div>
-        </aside>
+          </aside>
+        </Transition>
       </div>
     </main>
   </div>
@@ -1062,37 +1154,63 @@ function selectBlock(id: string) {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-/* Workspace Grid */
-.heatmap-workspace-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.85fr);
-  gap: 0.65rem;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* Left Canvas */
-.heatmap-canvas-card {
+/* Dedicated Memory Distribution Section */
+.memory-distribution-section {
   background: var(--color-bg-base);
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  padding: 0.45rem;
+  padding: 0.35rem 0.6rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
+  gap: 0.3rem;
+  flex-shrink: 0;
 }
 
+.distribution-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dist-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dist-icon {
+  font-size: 0.85rem;
+}
+
+.dist-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.dist-scope-badge {
+  font-size: 0.62rem;
+  color: var(--color-accent);
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+}
+
+.dist-hint {
+  font-size: 0.58rem;
+  color: var(--color-text-muted);
+}
+
+/* Prominent 24px Multi-Colored Glass Prism Bar */
 .distribution-bar-wrap {
   width: 100%;
-  height: 12px; /* Thicker, prominent multi-colored glass tube */
-  background: rgba(0, 0, 0, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.65), 0 2px 8px rgba(0, 0, 0, 0.3);
-  border-radius: 9999px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.7), 0 2px 10px rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
   display: flex;
   overflow: hidden;
   flex-shrink: 0;
@@ -1101,35 +1219,128 @@ function selectBlock(id: string) {
 
 .dist-segment {
   height: 100%;
-  transition: width 0.3s ease;
+  transition: width 0.3s ease, filter 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 1px solid rgba(0, 0, 0, 0.45);
+  border-right: 1px solid rgba(0, 0, 0, 0.55);
   position: relative;
+  cursor: pointer;
+  user-select: none;
 }
 
-.dist-segment:hover {
-  filter: brightness(1.25);
+.dist-segment:hover,
+.dist-segment--active {
+  filter: brightness(1.3);
+  z-index: 2;
+}
+
+.dist-segment--active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid #ffffff;
+  pointer-events: none;
+}
+
+.segment-shine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.04) 100%);
+  pointer-events: none;
 }
 
 .dist-label {
-  font-size: 0.54rem;
+  font-size: 0.6rem;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.95);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  color: rgba(255, 255, 255, 0.98);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 0 0.35rem;
+  padding: 0 0.4rem;
+  z-index: 1;
 }
 
-/* Proportional Heatmap Tiles Grid */
+/* Informative Legend Strip */
+.distribution-legend-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0.05rem 0;
+}
+
+.distribution-legend-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.58rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+.legend-item:hover,
+.legend-item--active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--color-text-primary);
+}
+
+.legend-item--active {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
+}
+
+.legend-color-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.legend-name {
+  font-weight: 600;
+}
+
+.legend-pct {
+  font-weight: 700;
+}
+
+/* Full-Width Heatmap Workspace Area */
+.heatmap-workspace-area {
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Proportional Heatmap Tiles Grid - Full 100% Horizontal Space */
 .tiles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   grid-auto-rows: 1fr;
-  gap: 0.45rem;
+  gap: 0.55rem;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -1581,9 +1792,65 @@ function selectBlock(id: string) {
 .text-cyan { color: #38bdf8; }
 .text-emerald { color: #10b981; }
 
-@media (max-width: 900px) {
-  .heatmap-workspace-grid {
-    grid-template-columns: 1fr;
-  }
+/* Floating Interactive Block Dossier (Overlay Card) */
+.floating-dossier-card {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  width: 360px;
+  max-width: calc(100% - 1rem);
+  z-index: 50;
+  background: rgba(15, 23, 42, 0.94) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 8px !important;
+  box-shadow: -10px 0 36px rgba(0, 0, 0, 0.75), 0 10px 25px rgba(0, 0, 0, 0.6) !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.85rem 0.95rem !important;
+  overflow-y: auto;
+}
+
+.dossier-close-btn {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.dossier-close-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #ef4444;
+  transform: scale(1.08);
+}
+
+/* Slide Transition */
+.dossier-slide-enter-active,
+.dossier-slide-leave-active {
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dossier-slide-enter-from,
+.dossier-slide-leave-to {
+  transform: translateX(110%);
+  opacity: 0;
 }
 </style>
