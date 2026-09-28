@@ -453,11 +453,19 @@ onUnmounted(() => {
                 :stroke="gaugeColor"
                 :stroke-dasharray="MINI_CIRCUMFERENCE"
                 :stroke-dashoffset="miniStrokeDashoffset"
+                transform="rotate(-90 18 18)"
               />
+              <text
+                x="18"
+                y="18.5"
+                text-anchor="middle"
+                dominant-baseline="central"
+                class="mini-gauge-svg-text font-mono"
+                :fill="gaugeColor"
+              >
+                {{ freePercent.toFixed(0) }}%
+              </text>
             </svg>
-            <span class="mini-gauge-center-text" :style="{ color: gaugeColor }">
-              {{ freePercent.toFixed(0) }}%
-            </span>
           </div>
           <div class="mini-gauge-text">
             <span class="text-label">RAM FREE</span>
@@ -665,35 +673,41 @@ onUnmounted(() => {
             <!-- Glass Specular Reflection Highlight -->
             <div class="tile-glass-specular" />
 
-            <!-- Vertical Animated Liquid Fill with Subtle Calm Wave (Water in Glass Container) -->
+            <!-- Vertical Animated Liquid Fill with Diluted Overlapping Waves (Soft, Organic Watercolor Feel) -->
             <div
               class="tile-liquid-fill"
               :style="{
                 height: `${calculateLiquidHeight(block)}%`,
-                background: `linear-gradient(180deg, ${block.color}45 0%, ${block.color}25 45%, ${block.color}12 100%)`,
-                boxShadow: `0 -2px 14px ${block.color}50, inset 0 1px 0 rgba(255, 255, 255, 0.25)`,
+                background: `linear-gradient(180deg, ${block.color}35 0%, ${block.color}1e 45%, ${block.color}0a 100%)`,
+                boxShadow: `0 -4px 18px ${block.color}25`,
               }"
             >
-              <!-- Subtle Gentle Wave Surface SVG -->
+              <!-- Diluted Overlapping Liquid Wave Surface SVG -->
               <div class="subtle-wave-wrap">
-                <svg class="subtle-wave-svg" viewBox="0 0 240 14" preserveAspectRatio="none">
+                <svg class="subtle-wave-svg" viewBox="0 0 320 20" preserveAspectRatio="none">
+                  <!-- Back wave: gentle deep ripple -->
                   <path
                     class="wave-path wave-path-back"
                     :fill="block.color"
-                    fill-opacity="0.3"
-                    d="M0,7 C35,2 75,12 120,7 C165,2 205,12 240,7 L240,14 L0,14 Z"
+                    fill-opacity="0.14"
+                    d="M0,10 C40,4 90,16 160,10 C230,4 280,16 320,10 L320,20 L0,20 Z"
                   />
+                  <!-- Mid wave: overlapping offset ripple -->
+                  <path
+                    class="wave-path wave-path-mid"
+                    :fill="block.color"
+                    fill-opacity="0.22"
+                    d="M0,10 C50,15 110,5 170,11 C230,17 280,6 320,10 L320,20 L0,20 Z"
+                  />
+                  <!-- Front wave: soft crest ripple -->
                   <path
                     class="wave-path wave-path-front"
                     :fill="block.color"
-                    fill-opacity="0.65"
-                    d="M0,7 C45,12 85,2 120,7 C155,12 195,2 240,7 L240,14 L0,14 Z"
+                    fill-opacity="0.30"
+                    d="M0,10 C60,6 120,15 180,9 C240,3 290,14 320,10 L320,20 L0,20 Z"
                   />
                 </svg>
               </div>
-
-              <!-- Meniscus Water Surface Glow Line -->
-              <div class="water-surface-line" :style="{ backgroundColor: block.color }" />
             </div>
 
             <!-- Floating Percentage Gauge Pill at Water Surface Level on Card Edge -->
@@ -948,30 +962,28 @@ onUnmounted(() => {
 .mini-svg {
   width: 100%;
   height: 100%;
-  transform: rotate(-90deg);
+  display: block;
 }
 
 .mini-gauge-bg {
   fill: none;
   stroke: var(--color-border-subtle);
-  stroke-width: 4;
+  stroke-width: 3.5;
 }
 
 .mini-gauge-fill {
   fill: none;
-  stroke-width: 4;
+  stroke-width: 3.5;
   stroke-linecap: round;
   transition: stroke-dashoffset 0.6s ease;
 }
 
-.mini-gauge-center-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.62rem;
+.mini-gauge-svg-text {
+  font-size: 8.8px;
   font-weight: 800;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: -0.4px;
+  user-select: none;
 }
 
 .mini-gauge-text {
@@ -1401,13 +1413,13 @@ onUnmounted(() => {
   overflow: visible;
 }
 
-/* Subtle, Calm, Non-Aggressive Wave Surface at Water Boundary */
+/* Diluted Overlapping Liquid Waves (Soft, Organic Watercolor Feel) */
 .subtle-wave-wrap {
   position: absolute;
-  top: -7px;
+  top: -12px;
   left: -20%;
   width: 140%;
-  height: 14px;
+  height: 18px;
   pointer-events: none;
   overflow: hidden;
 }
@@ -1422,8 +1434,12 @@ onUnmounted(() => {
   animation: wave-front-drift 6.5s ease-in-out infinite alternate;
 }
 
+.wave-path-mid {
+  animation: wave-mid-drift 8.5s ease-in-out infinite alternate;
+}
+
 .wave-path-back {
-  animation: wave-back-drift 9s ease-in-out infinite alternate;
+  animation: wave-back-drift 11s ease-in-out infinite alternate;
 }
 
 @keyframes wave-front-drift {
@@ -1431,27 +1447,26 @@ onUnmounted(() => {
     transform: translateX(0);
   }
   100% {
-    transform: translateX(-35px);
+    transform: translateX(-40px);
+  }
+}
+
+@keyframes wave-mid-drift {
+  0% {
+    transform: translateX(-15px);
+  }
+  100% {
+    transform: translateX(20px);
   }
 }
 
 @keyframes wave-back-drift {
   0% {
-    transform: translateX(-25px);
+    transform: translateX(-30px);
   }
   100% {
-    transform: translateX(15px);
+    transform: translateX(10px);
   }
-}
-
-.water-surface-line {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1.5px;
-  opacity: 0.9;
-  box-shadow: 0 0 8px currentColor;
 }
 
 /* Floating Percentage Gauge Pill at Water Surface Level on Card Edge */
