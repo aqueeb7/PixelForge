@@ -110,8 +110,8 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
   return [
     {
       id: 'spiffs',
-      friendlyName: 'Reels & Assets',
-      techName: 'spiffs (LittleFS)',
+      friendlyName: 'Animation Reels & Assets',
+      techName: 'spiffs (LittleFS Partition)',
       icon: '🎞️',
       category: 'storage',
       addressHex: '0x150000',
@@ -120,15 +120,15 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: 184320,
       access: 'RW-',
       status: 'optimal',
-      color: '#10b981',
+      color: '#10b981', // Emerald
       plainSummary: 'Dedicated flash storage for offline 1-bit video clips, drawings, and animation reels.',
       creatorImpact: 'Room for ~1,530 frames (100+ seconds of animation at 15 FPS) running standalone!',
       techDetail: 'SPI flash partition formatted as LittleFS with wear-leveling.',
     },
     {
       id: 'app0',
-      friendlyName: 'Firmware OS',
-      techName: 'app0 (Factory App)',
+      friendlyName: 'PixelForge Firmware OS',
+      techName: 'app0 (Factory App Partition)',
       icon: '🚀',
       category: 'firmware',
       addressHex: '0x010000',
@@ -137,15 +137,15 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: 440320,
       access: 'R-X',
       status: 'active',
-      color: '#0284c7',
+      color: '#0284c7', // Electric Blue
       plainSummary: 'Core operating system driving the OLED display and serial binary protocol.',
       creatorImpact: 'Handles real-time 30 FPS rendering, CRC-8 packet checks, and I2C fast-mode communication.',
       techDetail: 'Cached via Xtensa flash MMU with instruction cache enabled.',
     },
     {
       id: 'unallocated',
-      friendlyName: 'Free Expansion',
-      techName: 'Unallocated Flash',
+      friendlyName: 'Available Flash Space',
+      techName: 'Unallocated Flash Headroom',
       icon: '🟢',
       category: 'free',
       addressHex: '0x2D0000',
@@ -154,15 +154,15 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: 0,
       access: 'RW-',
       status: 'headroom',
-      color: '#059669',
+      color: '#059669', // Dark Emerald
       plainSummary: 'Empty flash storage available for future OTA firmware updates or larger animation storage.',
       creatorImpact: 'Zero storage anxiety: over 1 MB of spare flash space remaining.',
       techDetail: 'Raw unpartitioned flash sectors available for OTA2 partition.',
     },
     {
       id: 'nvs',
-      friendlyName: 'Settings & WiFi',
-      techName: 'nvs (Key-Value)',
+      friendlyName: 'Saved Settings & WiFi',
+      techName: 'nvs (Key-Value Storage)',
       icon: '⚙️',
       category: 'storage',
       addressHex: '0x009000',
@@ -171,15 +171,15 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: 12288,
       access: 'RW-',
       status: 'active',
-      color: '#f59e0b',
+      color: '#f59e0b', // Amber
       plainSummary: 'Stores your Wi-Fi credentials, last-used OLED display pins, and screen brightness.',
       creatorImpact: 'Remembers all your hardware settings across power unplugs.',
       techDetail: 'Non-volatile storage sectors with CRC32 integrity verification.',
     },
     {
       id: 'bootloader',
-      friendlyName: 'Bootloader',
-      techName: 'bootloader (ROM)',
+      friendlyName: 'Hardware Bootloader',
+      techName: 'bootloader (ROM Stage 2)',
       icon: '🛡️',
       category: 'system',
       addressHex: '0x001000',
@@ -188,7 +188,7 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: bootloaderSize,
       access: 'R-X',
       status: 'system',
-      color: '#6366f1',
+      color: '#6366f1', // Indigo
       plainSummary: 'Initializes the ESP32 CPU and handles 1-click flashing from PixelForge.',
       creatorImpact: 'Enables automatic DTR/RTS auto-reset without needing to hold physical board buttons.',
       techDetail: 'Second-stage bootloader binary executing from IRAM.',
@@ -196,7 +196,7 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
     {
       id: 'otadata',
       friendlyName: 'OTA System State',
-      techName: 'otadata (OTA State)',
+      techName: 'otadata (Dual-Boot State)',
       icon: '🔄',
       category: 'system',
       addressHex: '0x00E000',
@@ -205,7 +205,7 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: 4096,
       access: 'RW-',
       status: 'system',
-      color: '#8b5cf6',
+      color: '#8b5cf6', // Violet
       plainSummary: 'Safeguards firmware updates so the board never bricks if interrupted.',
       creatorImpact: 'Guarantees reliable recovery during firmware upgrades.',
       techDetail: 'Two mirror pages keeping rollback boot sequence pointers.',
@@ -213,7 +213,7 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
     {
       id: 'partition_table',
       friendlyName: 'Partition Map',
-      techName: 'partition_table',
+      techName: 'partition_table (Binary Table)',
       icon: '📑',
       category: 'system',
       addressHex: '0x008000',
@@ -222,7 +222,7 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: partitionTableSize,
       access: 'R--',
       status: 'system',
-      color: '#475569',
+      color: '#475569', // Slate
       plainSummary: 'The master blueprint that tells the ESP32 where each partition lives.',
       creatorImpact: 'Ensures animation files never collide with system code.',
       techDetail: 'Binary table parsed at address 0x8000 on startup.',
@@ -244,7 +244,7 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
     {
       id: 'free_heap',
       friendlyName: 'Free Dynamic RAM',
-      techName: 'Free Dynamic Heap',
+      techName: 'Free Dynamic Heap (DRAM)',
       icon: '🟢',
       category: 'free',
       addressHex: '0x3FFE0000',
@@ -260,8 +260,8 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
     },
     {
       id: 'in_use_heap',
-      friendlyName: 'Active Buffers',
-      techName: 'Allocated Heap',
+      friendlyName: 'Active Memory Buffers',
+      techName: 'Allocated Heap Objects',
       icon: '⚡',
       category: 'heap',
       addressHex: '0x3FFC0000',
@@ -293,26 +293,9 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
       techDetail: 'Differential between current free heap and lowest recorded floor.',
     },
     {
-      id: 'dma_buffer',
-      friendlyName: '128×64 OLED Buffer',
-      techName: 'DMA Display Buffer',
-      icon: '🖥️',
-      category: 'dma',
-      addressHex: '0x3FF9F000',
-      endAddressHex: '0x3FF9F3FF',
-      sizeBytes: dmaBufferSize,
-      usedBytes: dmaBufferSize,
-      access: 'RW-',
-      status: 'active',
-      color: '#ec4899',
-      plainSummary: 'Exact 1024-byte pixel buffer mirrored directly to your physical OLED screen.',
-      creatorImpact: 'This is the active canvas where every pixel you draw or stream is held in RAM.',
-      techDetail: '8,192 bits (1024 bytes) row-major MSB-first packed buffer.',
-    },
-    {
       id: 'iram',
       friendlyName: 'Driver Code (IRAM)',
-      techName: 'IRAM (Instruction RAM)',
+      techName: 'IRAM (Zero-Wait Memory)',
       icon: '⚡',
       category: 'system',
       addressHex: '0x40080000',
@@ -328,7 +311,7 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
     },
     {
       id: 'static_bss',
-      friendlyName: 'Kernel & Stack',
+      friendlyName: 'Static System & Stack',
       techName: 'Static BSS & Stack',
       icon: '⚙️',
       category: 'system',
@@ -342,6 +325,23 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
       plainSummary: 'Fixed system memory used by the microcontroller for background tasks.',
       creatorImpact: 'Keeps the ESP32 operating reliably in the background.',
       techDetail: 'Compile-time statically allocated variables.',
+    },
+    {
+      id: 'dma_buffer',
+      friendlyName: '128×64 OLED Buffer',
+      techName: 'DMA Display Framebuffer',
+      icon: '🖥️',
+      category: 'dma',
+      addressHex: '0x3FF9F000',
+      endAddressHex: '0x3FF9F3FF',
+      sizeBytes: dmaBufferSize,
+      usedBytes: dmaBufferSize,
+      access: 'RW-',
+      status: 'active',
+      color: '#ec4899',
+      plainSummary: 'Exact 1024-byte pixel buffer mirrored directly to your physical OLED screen.',
+      creatorImpact: 'This is the active canvas where every pixel you draw or stream is held in RAM.',
+      techDetail: '8,192 bits (1024 bytes) row-major MSB-first packed buffer.',
     },
   ]
 })
@@ -492,7 +492,7 @@ function selectBlock(id: string) {
               title="Creator Mode: Plain English labels & animation capacity"
               @click="detailLevel = 'creator'"
             >
-              👤 Creator
+              👤 Creator View
             </button>
             <button
               class="compact-btn"
@@ -565,55 +565,79 @@ function selectBlock(id: string) {
               @mouseenter="selectBlock(block.id)"
               @click="selectBlock(block.id)"
             >
-              <!-- Top Glow Bar -->
+              <!-- Full-Card Heatmap Progress Fill Layer -->
+              <div
+                class="tile-heat-backdrop"
+                :style="{
+                  width: `${calculateBlockFill(block)}%`,
+                  background: `linear-gradient(90deg, ${block.color}18 0%, ${block.color}35 100%)`,
+                  borderRight: block.usedBytes > 0 ? `2px solid ${block.color}` : 'none',
+                  boxShadow: block.usedBytes > 0 ? `0 0 10px ${block.color}60` : 'none',
+                }"
+              />
+
+              <!-- Top Accent Glow Strip -->
               <div class="tile-glow-strip" :style="{ backgroundColor: block.color }" />
 
-              <!-- Tile Header -->
-              <div class="tile-header">
-                <div class="tile-identity">
+              <!-- Tile Content Layer (Z-index above backdrop) -->
+              <div class="tile-content-layer">
+                <!-- Header: Category & Access -->
+                <div class="tile-header">
+                  <div class="tile-cat-badge font-mono" :style="{ color: block.color }">
+                    <span class="cat-dot" :style="{ backgroundColor: block.color }" />
+                    {{ block.category.toUpperCase() }}
+                  </div>
+                  <span class="tile-access font-mono">{{ block.access }}</span>
+                </div>
+
+                <!-- Title Row: Fully Visible, Never Truncated with Dots -->
+                <div class="tile-title-row">
                   <span class="tile-icon">{{ block.icon }}</span>
-                  <span class="tile-name">
+                  <h5 class="tile-full-title">
                     {{ detailLevel === 'creator' ? block.friendlyName : block.techName }}
-                  </span>
+                  </h5>
                 </div>
-                <span class="tile-access font-mono">{{ block.access }}</span>
-              </div>
 
-              <!-- Tile Metric Body -->
-              <div class="tile-metric-body">
-                <div class="size-line">
+                <!-- Metrics Row: Big Size & Chip Share -->
+                <div class="tile-metric-row">
                   <span class="tile-size font-mono">{{ formatBytes(block.sizeBytes) }}</span>
-                  <span class="tile-pct font-mono">({{ calculatePercent(block.sizeBytes) }})</span>
+                  <span class="tile-share font-mono">({{ calculatePercent(block.sizeBytes) }})</span>
                 </div>
 
-                <!-- Mini Progress Fill Bar -->
-                <div class="tile-progress-wrap">
-                  <div class="tile-progress-track">
+                <!-- Card-Integrated Heat Progress Bar -->
+                <div class="tile-progress-container">
+                  <div class="progress-track">
                     <div
-                      class="tile-progress-fill"
+                      class="progress-fill"
                       :style="{
                         width: `${calculateBlockFill(block)}%`,
                         backgroundColor: block.color,
+                        boxShadow: `0 0 6px ${block.color}90`,
                       }"
                     />
                   </div>
-                  <span v-if="block.usedBytes > 0" class="tile-fill-label font-mono">
-                    {{ calculateBlockFill(block) }}% used
+                  <div class="progress-labels font-mono">
+                    <span v-if="block.usedBytes > 0" class="used-label">
+                      {{ calculateBlockFill(block) }}% used
+                    </span>
+                    <span v-else class="free-label text-emerald">
+                      100% free
+                    </span>
+                    <span class="free-remain text-muted">
+                      {{ formatBytes(Math.max(0, block.sizeBytes - block.usedBytes)) }} headroom
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Footer: Impact Note or Hex Bounds -->
+                <div class="tile-footer">
+                  <span v-if="detailLevel === 'creator'" class="footer-plain-note">
+                    {{ block.creatorImpact }}
                   </span>
-                  <span v-else class="tile-fill-label font-mono text-emerald">
-                    100% free
+                  <span v-else class="footer-hex-bounds font-mono">
+                    {{ block.addressHex }} → {{ block.endAddressHex }}
                   </span>
                 </div>
-              </div>
-
-              <!-- Tile Footer -->
-              <div class="tile-footer">
-                <span v-if="detailLevel === 'creator'" class="footer-note">
-                  {{ block.creatorImpact }}
-                </span>
-                <span v-else class="footer-hex font-mono">
-                  {{ block.addressHex }} → {{ block.endAddressHex }}
-                </span>
               </div>
             </div>
           </div>
@@ -657,13 +681,13 @@ function selectBlock(id: string) {
               <span class="stat-val font-mono">{{ calculatePercent(activeBlock.sizeBytes) }}</span>
             </div>
             <div class="stat-box">
-              <span class="stat-lbl">USED NOW</span>
+              <span class="stat-lbl">CURRENT USAGE</span>
               <span class="stat-val font-mono">
                 {{ activeBlock.usedBytes ? formatBytes(activeBlock.usedBytes) : '0 B (Free)' }}
               </span>
             </div>
             <div class="stat-box">
-              <span class="stat-lbl">HEADROOM</span>
+              <span class="stat-lbl">FREE HEADROOM</span>
               <span class="stat-val font-mono text-emerald">
                 {{ formatBytes(Math.max(0, activeBlock.sizeBytes - activeBlock.usedBytes)) }}
               </span>
@@ -1043,43 +1067,53 @@ function selectBlock(id: string) {
   transition: width 0.3s ease;
 }
 
-/* Proportional Tiles Grid */
+/* Proportional Heatmap Tiles Grid */
 .tiles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   grid-auto-rows: 1fr;
-  gap: 0.4rem;
+  gap: 0.45rem;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
+/* The Finviz Tile: Pure Heat Map Surface */
 .finviz-tile {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
   border-top-width: 2.5px;
-  border-radius: 5px;
-  padding: 0.45rem 0.55rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
+  border-radius: 6px;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
   transition: all 0.15s ease;
   min-height: 0;
 }
 
 .finviz-tile:hover {
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.35);
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .tile--active {
   border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 1.5px rgba(56, 189, 248, 0.35), 0 4px 14px rgba(0, 0, 0, 0.5);
   background: var(--color-bg-elevated);
-  box-shadow: 0 0 0 1.5px rgba(56, 189, 248, 0.3), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Card-Integrated Heat Progress Fill Backdrop */
+.tile-heat-backdrop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .tile-glow-strip {
@@ -1089,117 +1123,152 @@ function selectBlock(id: string) {
   right: 0;
   height: 2px;
   opacity: 0.7;
+  z-index: 3;
+}
+
+/* Tile Content Layer */
+.tile-content-layer {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  padding: 0.45rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.25rem;
 }
 
 .tile-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
-.tile-identity {
+.tile-cat-badge {
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  overflow: hidden;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
 }
 
-.tile-icon {
-  font-size: 0.82rem;
-  flex-shrink: 0;
-}
-
-.tile-name {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.cat-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
 }
 
 .tile-access {
   font-size: 0.55rem;
   color: var(--color-text-muted);
   background: rgba(255, 255, 255, 0.05);
-  padding: 0.05rem 0.2rem;
+  padding: 0.05rem 0.25rem;
   border-radius: 2px;
-  flex-shrink: 0;
 }
 
-.tile-metric-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
-  margin: 0.1rem 0;
-}
-
-.size-line {
-  display: flex;
-  align-items: baseline;
-  gap: 0.25rem;
-}
-
-.tile-size {
-  font-size: 0.92rem;
-  font-weight: 800;
-  color: var(--color-text-primary);
-  line-height: 1;
-}
-
-.tile-pct {
-  font-size: 0.62rem;
-  color: var(--color-text-secondary);
-}
-
-.tile-progress-wrap {
+/* Title Row: STRICTLY FULLY VISIBLE, NEVER DOTTED */
+.tile-title-row {
   display: flex;
   align-items: center;
   gap: 0.35rem;
 }
 
-.tile-progress-track {
-  flex: 1;
-  height: 4px;
-  background: var(--color-border-subtle);
+.tile-icon {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.tile-full-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+  line-height: 1.25;
+  white-space: normal; /* STRICT: No single-line clipping */
+  overflow: visible;   /* STRICT: No hidden overflow */
+  text-overflow: clip; /* STRICT: No ellipsis dots */
+  word-break: normal;
+}
+
+/* Metric Row */
+.tile-metric-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.tile-size {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  line-height: 1;
+}
+
+.tile-share {
+  font-size: 0.62rem;
+  color: var(--color-text-secondary);
+}
+
+/* Card-Integrated Heat Progress Container */
+.tile-progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.progress-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 9999px;
   overflow: hidden;
 }
 
-.tile-progress-fill {
+.progress-fill {
   height: 100%;
   border-radius: 9999px;
   transition: width 0.3s ease;
 }
 
-.tile-fill-label {
-  font-size: 0.56rem;
-  color: var(--color-text-muted);
-  white-space: nowrap;
+.progress-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.58rem;
+  line-height: 1;
 }
 
+.used-label {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.free-label {
+  font-weight: 700;
+}
+
+.free-remain {
+  color: var(--color-text-muted);
+}
+
+/* Tile Footer */
 .tile-footer {
   border-top: 1px solid var(--color-border-subtle);
   padding-top: 0.2rem;
-  overflow: hidden;
+  line-height: 1.2;
 }
 
-.footer-note {
-  font-size: 0.6rem;
+.footer-plain-note {
+  font-size: 0.62rem;
   color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   display: block;
 }
 
-.footer-hex {
+.footer-hex-bounds {
   font-size: 0.58rem;
   color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   display: block;
 }
 
@@ -1286,9 +1355,6 @@ function selectBlock(id: string) {
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .dossier-subheading {
