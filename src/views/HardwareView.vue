@@ -642,11 +642,9 @@ async function handleSave() {
 .telemetry-pane {
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
-  padding-right: 4px;
+  overflow: hidden; /* Strict: zero scrollbars */
   display: flex;
   flex-direction: column;
-  gap: 1rem;
 }
 
 /* MODE 3: Serial Console & Packet Grid */

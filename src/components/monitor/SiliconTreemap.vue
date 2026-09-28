@@ -36,10 +36,10 @@ interface TreemapBlock {
 }
 
 // -------------------------------------------------------------
-// Live Telemetry Calculations (formerly from MemoryGauges)
+// Live Telemetry Calculations
 // -------------------------------------------------------------
-const RADIUS = 44
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS
+const MINI_RADIUS = 14
+const MINI_CIRCUMFERENCE = 2 * Math.PI * MINI_RADIUS
 
 const heapUsagePercent = computed(() => {
   if (!telemetry.value || !telemetry.value.total_heap) return 33
@@ -51,8 +51,8 @@ const freePercent = computed(() => {
   return 100 - heapUsagePercent.value
 })
 
-const strokeDashoffset = computed(() => {
-  return CIRCUMFERENCE - (freePercent.value / 100) * CIRCUMFERENCE
+const miniStrokeDashoffset = computed(() => {
+  return MINI_CIRCUMFERENCE - (freePercent.value / 100) * MINI_CIRCUMFERENCE
 })
 
 const gaugeColor = computed(() => {
@@ -62,23 +62,9 @@ const gaugeColor = computed(() => {
   return '#f43f5e'                   // Crimson
 })
 
-const gradientStart = computed(() => {
-  const freeKb = (telemetry.value?.free_heap ?? 218000) / 1024
-  if (freeKb > 100) return '#38bdf8'
-  if (freeKb > 40) return '#fbbf24'
-  return '#fb7185'
-})
-
-const gradientEnd = computed(() => {
-  const freeKb = (telemetry.value?.free_heap ?? 218000) / 1024
-  if (freeKb > 100) return '#10b981'
-  if (freeKb > 40) return '#f59e0b'
-  return '#e11d48'
-})
-
 function formatKb(bytes?: number): string {
   if (!bytes) return '0 KB'
-  return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024).toFixed(0)} KB`
 }
 
 function formatBytes(bytes?: number): string {
@@ -87,7 +73,7 @@ function formatBytes(bytes?: number): string {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
   }
   if (bytes >= 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1024).toFixed(0)} KB`
   }
   return `${bytes} B`
 }
@@ -97,7 +83,7 @@ function formatUptime(seconds?: number): string {
   const hrs = Math.floor(seconds / 3600)
   const mins = Math.floor((seconds % 3600) / 60)
   const secs = seconds % 60
-  if (hrs > 0) return `${hrs}h ${mins}m ${secs}s`
+  if (hrs > 0) return `${hrs}h ${mins}m`
   if (mins > 0) return `${mins}m ${secs}s`
   return `${secs}s`
 }
@@ -124,41 +110,41 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
   return [
     {
       id: 'spiffs',
-      friendlyName: 'Animation Reels & Assets',
+      friendlyName: 'Reels & Assets',
       techName: 'spiffs (LittleFS)',
       icon: '🎞️',
       category: 'storage',
       addressHex: '0x150000',
       endAddressHex: '0x2CFFFF',
       sizeBytes: spiffsSize,
-      usedBytes: 184320, // ~180 KB used for starter animations
+      usedBytes: 184320,
       access: 'RW-',
       status: 'optimal',
-      color: '#10b981', // Emerald
+      color: '#10b981',
       plainSummary: 'Dedicated flash storage for offline 1-bit video clips, drawings, and animation reels.',
-      creatorImpact: 'Room for ~1,530 frames (100+ seconds of animation at 15 FPS) running without a PC!',
+      creatorImpact: 'Room for ~1,530 frames (100+ seconds of animation at 15 FPS) running standalone!',
       techDetail: 'SPI flash partition formatted as LittleFS with wear-leveling.',
     },
     {
       id: 'app0',
-      friendlyName: 'PixelForge Firmware OS',
+      friendlyName: 'Firmware OS',
       techName: 'app0 (Factory App)',
       icon: '🚀',
       category: 'firmware',
       addressHex: '0x010000',
       endAddressHex: '0x14FFFF',
       sizeBytes: app0Size,
-      usedBytes: 440320, // ~430 KB application code
+      usedBytes: 440320,
       access: 'R-X',
       status: 'active',
-      color: '#0284c7', // Electric Blue
-      plainSummary: 'The core operating system running on the ESP32 that drives the OLED display and serial protocol.',
+      color: '#0284c7',
+      plainSummary: 'Core operating system driving the OLED display and serial binary protocol.',
       creatorImpact: 'Handles real-time 30 FPS rendering, CRC-8 packet checks, and I2C fast-mode communication.',
       techDetail: 'Cached via Xtensa flash MMU with instruction cache enabled.',
     },
     {
       id: 'unallocated',
-      friendlyName: 'Available Expansion Space',
+      friendlyName: 'Free Expansion',
       techName: 'Unallocated Flash',
       icon: '🟢',
       category: 'free',
@@ -168,14 +154,14 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: 0,
       access: 'RW-',
       status: 'headroom',
-      color: '#059669', // Dark Emerald
+      color: '#059669',
       plainSummary: 'Empty flash storage available for future OTA firmware updates or larger animation storage.',
       creatorImpact: 'Zero storage anxiety: over 1 MB of spare flash space remaining.',
       techDetail: 'Raw unpartitioned flash sectors available for OTA2 partition.',
     },
     {
       id: 'nvs',
-      friendlyName: 'Saved Settings & Wi-Fi',
+      friendlyName: 'Settings & WiFi',
       techName: 'nvs (Key-Value)',
       icon: '⚙️',
       category: 'storage',
@@ -185,14 +171,14 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: 12288,
       access: 'RW-',
       status: 'active',
-      color: '#f59e0b', // Amber
+      color: '#f59e0b',
       plainSummary: 'Stores your Wi-Fi credentials, last-used OLED display pins, and screen brightness.',
       creatorImpact: 'Remembers all your hardware settings across power unplugs.',
       techDetail: 'Non-volatile storage sectors with CRC32 integrity verification.',
     },
     {
       id: 'bootloader',
-      friendlyName: 'Hardware Bootloader',
+      friendlyName: 'Bootloader',
       techName: 'bootloader (ROM)',
       icon: '🛡️',
       category: 'system',
@@ -202,14 +188,14 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: bootloaderSize,
       access: 'R-X',
       status: 'system',
-      color: '#6366f1', // Indigo
+      color: '#6366f1',
       plainSummary: 'Initializes the ESP32 CPU and handles 1-click flashing from PixelForge.',
       creatorImpact: 'Enables automatic DTR/RTS auto-reset without needing to hold physical board buttons.',
       techDetail: 'Second-stage bootloader binary executing from IRAM.',
     },
     {
       id: 'otadata',
-      friendlyName: 'Dual-Boot System State',
+      friendlyName: 'OTA System State',
       techName: 'otadata (OTA State)',
       icon: '🔄',
       category: 'system',
@@ -219,14 +205,14 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: 4096,
       access: 'RW-',
       status: 'system',
-      color: '#8b5cf6', // Violet
+      color: '#8b5cf6',
       plainSummary: 'Safeguards firmware updates so the board never bricks if interrupted.',
       creatorImpact: 'Guarantees reliable recovery during firmware upgrades.',
       techDetail: 'Two mirror pages keeping rollback boot sequence pointers.',
     },
     {
       id: 'partition_table',
-      friendlyName: 'Partition Table Map',
+      friendlyName: 'Partition Map',
       techName: 'partition_table',
       icon: '📑',
       category: 'system',
@@ -236,7 +222,7 @@ const flashBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: partitionTableSize,
       access: 'R--',
       status: 'system',
-      color: '#475569', // Slate
+      color: '#475569',
       plainSummary: 'The master blueprint that tells the ESP32 where each partition lives.',
       creatorImpact: 'Ensures animation files never collide with system code.',
       techDetail: 'Binary table parsed at address 0x8000 on startup.',
@@ -250,9 +236,9 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
   const minFree = telemetry.value?.min_free_heap ?? 184200
   const watermarkMargin = Math.max(0, currentFree - minFree)
   const inUseHeap = Math.max(0, totalReportedHeap - currentFree)
-  const staticBssData = 114688 // ~112 KB
-  const iramSize = 131072 // 128 KB
-  const dmaBufferSize = 1024 // 1024 bytes canonical OLED frame buffer
+  const staticBssData = 114688
+  const iramSize = 131072
+  const dmaBufferSize = 1024
 
   return [
     {
@@ -274,7 +260,7 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
     },
     {
       id: 'in_use_heap',
-      friendlyName: 'Active Memory Buffers',
+      friendlyName: 'Active Buffers',
       techName: 'Allocated Heap',
       icon: '⚡',
       category: 'heap',
@@ -284,14 +270,14 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: inUseHeap,
       access: 'RW-',
       status: 'active',
-      color: '#f59e0b', // Amber
+      color: '#f59e0b',
       plainSummary: 'Memory currently in active use processing packets and managing OLED tasks.',
       creatorImpact: 'Holds incoming serial data packets while converting to display pixels.',
       techDetail: 'Allocated heap objects and FreeRTOS task stacks.',
     },
     {
       id: 'watermark_margin',
-      friendlyName: 'Memory Leak Guard',
+      friendlyName: 'Leak Guard Margin',
       techName: 'Watermark Safety Margin',
       icon: '🛡️',
       category: 'heap',
@@ -301,14 +287,14 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: 0,
       access: 'RW-',
       status: 'optimal',
-      color: '#06b6d4', // Cyan
+      color: '#06b6d4',
       plainSummary: 'Lowest recorded memory headroom since boot. Proves whether your firmware has leaks.',
       creatorImpact: 'Green watermark confirms your device can stream animations for days without crashing.',
-      techDetail: 'Differential between current free heap and xPortGetMinimumEverFreeHeapSize().',
+      techDetail: 'Differential between current free heap and lowest recorded floor.',
     },
     {
       id: 'dma_buffer',
-      friendlyName: '128×64 OLED Framebuffer',
+      friendlyName: '128×64 OLED Buffer',
       techName: 'DMA Display Buffer',
       icon: '🖥️',
       category: 'dma',
@@ -318,14 +304,14 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: dmaBufferSize,
       access: 'RW-',
       status: 'active',
-      color: '#ec4899', // Pink
+      color: '#ec4899',
       plainSummary: 'Exact 1024-byte pixel buffer mirrored directly to your physical OLED screen.',
       creatorImpact: 'This is the active canvas where every pixel you draw or stream is held in RAM.',
       techDetail: '8,192 bits (1024 bytes) row-major MSB-first packed buffer.',
     },
     {
       id: 'iram',
-      friendlyName: 'High-Speed Driver Code',
+      friendlyName: 'Driver Code (IRAM)',
       techName: 'IRAM (Instruction RAM)',
       icon: '⚡',
       category: 'system',
@@ -335,14 +321,14 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: iramSize,
       access: 'R-X',
       status: 'system',
-      color: '#6366f1', // Indigo
+      color: '#6366f1',
       plainSummary: 'Ultra-fast memory for the I2C display driver so pixels render instantaneously.',
       creatorImpact: 'Zero lag: sends frames to your OLED at 400 kHz fast mode without stutter.',
       techDetail: 'Zero-wait-state internal memory for time-critical ISRs.',
     },
     {
       id: 'static_bss',
-      friendlyName: 'System Variables & OS',
+      friendlyName: 'Kernel & Stack',
       techName: 'Static BSS & Stack',
       icon: '⚙️',
       category: 'system',
@@ -352,7 +338,7 @@ const sramBlocks = computed<TreemapBlock[]>(() => {
       usedBytes: staticBssData,
       access: 'RW-',
       status: 'system',
-      color: '#475569', // Slate
+      color: '#475569',
       plainSummary: 'Fixed system memory used by the microcontroller for background tasks.',
       creatorImpact: 'Keeps the ESP32 operating reliably in the background.',
       techDetail: 'Compile-time statically allocated variables.',
@@ -395,221 +381,176 @@ function selectBlock(id: string) {
 <template>
   <div class="silicon-telemetry-dashboard">
     <!-- ========================================================= -->
-    <!-- 1. TOP UNIFIED TELEMETRY HUD BAR (Live Silicon Health)   -->
+    <!-- 1. COMPACT TOP HUD STRIP (Zero Scroll, High Density)     -->
     <!-- ========================================================= -->
-    <header class="telemetry-hud-card">
-      <div class="hud-top-strip">
-        <div class="device-identity">
-          <span class="hud-badge font-mono">SILICON COCKPIT</span>
-          <div class="connection-status">
-            <span v-if="isConnected" class="status-indicator status-live">
-              <span class="live-dot" /> LIVE ESP32 (115200 BAUD)
-            </span>
-            <span v-else class="status-indicator status-demo">
-              <span class="demo-dot" /> DEMO / CANONICAL PROFILE
+    <header class="compact-hud-strip">
+      <!-- Left: Identity & Connection -->
+      <div class="hud-left">
+        <span class="hud-badge font-mono">COCKPIT</span>
+        <div class="conn-pill" :class="isConnected ? 'conn-live' : 'conn-demo'">
+          <span class="conn-dot" />
+          <span class="conn-text font-mono">{{ isConnected ? 'ESP32 LIVE' : 'DEMO PROFILE' }}</span>
+        </div>
+        <span class="chip-name font-mono">
+          {{ chipDossier?.chip_model ?? 'ESP32 DevKit V1' }}
+        </span>
+      </div>
+
+      <!-- Center: Compact Radial RAM Gauge & Watermark Floor -->
+      <div class="hud-center">
+        <!-- Mini Radial RAM Gauge -->
+        <div class="mini-gauge-group" title="Dynamic RAM Free Headroom">
+          <div class="mini-gauge-svg-wrap">
+            <svg class="mini-svg" viewBox="0 0 36 36">
+              <circle class="mini-gauge-bg" cx="18" cy="18" :r="MINI_RADIUS" />
+              <circle
+                class="mini-gauge-fill"
+                cx="18"
+                cy="18"
+                :r="MINI_RADIUS"
+                :stroke="gaugeColor"
+                :stroke-dasharray="MINI_CIRCUMFERENCE"
+                :stroke-dashoffset="miniStrokeDashoffset"
+              />
+            </svg>
+            <span class="mini-gauge-center-text" :style="{ color: gaugeColor }">
+              {{ freePercent.toFixed(0) }}%
             </span>
           </div>
-          <span v-if="chipDossier" class="chip-label font-mono">
-            {{ chipDossier.chip_model }} ({{ formatBytes(totalFlashBytes) }})
-          </span>
-          <span v-else class="chip-label font-mono">
-            ESP32 DevKit V1 (4 MB Flash)
-          </span>
+          <div class="mini-gauge-text">
+            <span class="text-label">RAM FREE</span>
+            <span class="text-val font-mono" :style="{ color: gaugeColor }">
+              {{ formatKb(telemetry?.free_heap ?? 218500) }}
+            </span>
+          </div>
         </div>
 
-        <!-- Quick Live Telemetry Pills -->
-        <div class="hud-quick-pills">
-          <div class="hud-pill" title="Microcontroller continuous runtime">
-            <span class="pill-icon">⏱</span>
-            <span class="pill-label">Uptime:</span>
-            <span class="pill-val font-mono">{{ formatUptime(telemetry?.uptime_seconds ?? 4820) }}</span>
+        <div class="hud-divider" />
+
+        <!-- Mini Watermark Floor -->
+        <div class="mini-watermark-group" title="Lowest recorded memory floor since boot (Leak guard)">
+          <div class="watermark-info">
+            <span class="text-label">LEAK FLOOR</span>
+            <span class="text-val font-mono text-cyan">
+              {{ formatKb(telemetry?.min_free_heap ?? 184200) }}
+            </span>
           </div>
-          <div class="hud-pill pill-fps" title="Real-time OLED frame rendering rate">
-            <span class="pill-icon">⚡</span>
-            <span class="pill-label">Framerate:</span>
-            <span class="pill-val font-mono">{{ (telemetry?.current_fps ?? 30.0).toFixed(1) }} FPS</span>
-          </div>
-          <div class="hud-pill" title="Total frames pushed to OLED since boot">
-            <span class="pill-icon">🖼</span>
-            <span class="pill-label">Frames:</span>
-            <span class="pill-val font-mono">#{{ telemetry?.frame_counter ?? 1420 }}</span>
-          </div>
-          <div class="hud-pill" title="OLED contrast level">
-            <span class="pill-icon">💡</span>
-            <span class="pill-label">OLED:</span>
-            <span class="pill-val font-mono">{{ telemetry?.oled_contrast ?? 255 }}/255</span>
-          </div>
-          <div class="hud-pill pill-wifi" :class="`wifi-${telemetry?.wifi_status ?? 'connected'}`">
-            <span class="pill-icon">📶</span>
-            <span class="pill-val font-mono">{{ telemetry?.wifi_status ?? 'Connected' }}</span>
+          <div class="mini-watermark-track">
+            <div
+              class="mini-watermark-bar"
+              :style="{ width: `${Math.min(100, (((telemetry?.min_free_heap ?? 184200)) / (telemetry?.total_heap ?? 328000)) * 100)}%` }"
+            />
           </div>
         </div>
       </div>
 
-      <!-- Health Barometers Grid: Dual Gauges + Watermark Bar -->
-      <div class="hud-meters-grid">
-        <!-- Meter 1: Dynamic RAM Circular Gauge -->
-        <div class="meter-card ram-gauge-card">
-          <div class="radial-gauge-wrapper">
-            <svg class="radial-svg" viewBox="0 0 100 100">
-              <defs>
-                <linearGradient id="ramGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" :stop-color="gradientStart" />
-                  <stop offset="100%" :stop-color="gradientEnd" />
-                </linearGradient>
-              </defs>
-              <circle class="gauge-bg" cx="50" cy="50" :r="RADIUS" />
-              <circle
-                class="gauge-bar"
-                cx="50"
-                cy="50"
-                :r="RADIUS"
-                stroke="url(#ramGrad)"
-                :stroke-dasharray="CIRCUMFERENCE"
-                :stroke-dashoffset="strokeDashoffset"
-              />
-            </svg>
-            <div class="radial-center-content">
-              <span class="gauge-main-val" :style="{ color: gaugeColor }">
-                {{ freePercent.toFixed(0) }}%
-              </span>
-              <span class="gauge-sub-label">FREE RAM</span>
-            </div>
-          </div>
-
-          <div class="meter-details">
-            <div class="meter-title-row">
-              <span class="meter-title">⚡ Dynamic RAM Headroom</span>
-              <span class="meter-badge font-mono" :style="{ color: gaugeColor }">
-                {{ formatKb(telemetry?.free_heap ?? 218500) }} FREE
-              </span>
-            </div>
-            <p class="meter-plain-desc">
-              Unallocated memory ready for animation buffers and frame transmission.
-            </p>
-            <div class="meter-stat-row font-mono">
-              <span>Total Heap: {{ formatKb(telemetry?.total_heap ?? 328000) }}</span>
-              <span>Allocated: {{ formatKb((telemetry?.total_heap ?? 328000) - (telemetry?.free_heap ?? 218500)) }}</span>
-            </div>
-          </div>
+      <!-- Right: Live HUD Telemetry Pills -->
+      <div class="hud-right">
+        <div class="hud-chip pill-fps" title="Live OLED render FPS">
+          <span class="chip-icon">⚡</span>
+          <span class="chip-val font-mono">{{ (telemetry?.current_fps ?? 30.0).toFixed(1) }} FPS</span>
         </div>
-
-        <!-- Meter 2: Leak Guard Watermark Barometer -->
-        <div class="meter-card leak-guard-card">
-          <div class="meter-title-row">
-            <div class="title-with-icon">
-              <span class="icon">🛡️</span>
-              <div>
-                <span class="meter-title">Memory Leak Guard (Watermark)</span>
-                <span class="meter-sub">Lowest dynamic headroom recorded since boot</span>
-              </div>
-            </div>
-            <span class="meter-badge font-mono text-cyan">
-              {{ formatKb(telemetry?.min_free_heap ?? 184200) }} FLOOR
-            </span>
-          </div>
-
-          <!-- Visual Watermark Progress Bar -->
-          <div class="watermark-bar-track">
-            <div
-              class="watermark-bar-fill"
-              :style="{ width: `${Math.min(100, (((telemetry?.min_free_heap ?? 184200)) / (telemetry?.total_heap ?? 328000)) * 100)}%` }"
-            />
-          </div>
-
-          <div class="watermark-footer font-mono">
-            <span class="status-text text-emerald">✓ SAFE: No fragmentation detected</span>
-            <span>Safety Margin: +{{ formatKb(Math.max(0, (telemetry?.free_heap ?? 218500) - (telemetry?.min_free_heap ?? 184200))) }}</span>
-          </div>
+        <div class="hud-chip" title="Microcontroller uptime">
+          <span class="chip-icon">⏱</span>
+          <span class="chip-val font-mono">{{ formatUptime(telemetry?.uptime_seconds ?? 4820) }}</span>
+        </div>
+        <div class="hud-chip" title="Frames rendered">
+          <span class="chip-icon">🖼</span>
+          <span class="chip-val font-mono">#{{ telemetry?.frame_counter ?? 1420 }}</span>
+        </div>
+        <div class="hud-chip" title="OLED contrast">
+          <span class="chip-icon">💡</span>
+          <span class="chip-val font-mono">{{ telemetry?.oled_contrast ?? 255 }}</span>
+        </div>
+        <div class="hud-chip pill-wifi" :class="`wifi-${telemetry?.wifi_status ?? 'connected'}`" title="Wi-Fi connectivity">
+          <span class="chip-icon">📶</span>
+          <span class="chip-val font-mono">{{ telemetry?.wifi_status ?? 'Connected' }}</span>
         </div>
       </div>
     </header>
 
     <!-- ========================================================= -->
-    <!-- 2. FINVIZ-STYLE SILICON HEATMAP (Deeply Visual Treemap)  -->
+    <!-- 2. SILICON HEATMAP & DOSSIER (Fills 100% Remaining Height)-->
     <!-- ========================================================= -->
-    <section class="treemap-section">
-      <!-- Section Header & Controls -->
+    <main class="treemap-main-card">
+      <!-- Sleek Section Toolbar -->
       <div class="section-toolbar">
-        <div class="toolbar-left">
-          <div class="title-row">
-            <span class="section-icon">🗺️</span>
-            <h3 class="section-heading">Silicon Storage & Memory Heatmap</h3>
-          </div>
-          <p class="section-desc">
-            Visual breakdown of on-chip Flash storage partitions and dynamic RAM distribution.
-          </p>
+        <div class="toolbar-title-group">
+          <span class="toolbar-icon">🗺️</span>
+          <h3 class="toolbar-title">Silicon Storage & Memory Heatmap</h3>
+          <span class="toolbar-subtag font-mono">
+            {{ viewMode === 'flash' ? `Flash: ${formatBytes(totalFlashBytes)}` : viewMode === 'sram' ? `RAM: ${formatBytes(totalSramBytes)}` : 'Unified View' }}
+          </span>
         </div>
 
-        <div class="toolbar-right">
-          <!-- View Detail Level (Creator vs Engineer) -->
-          <div class="mode-toggle-group" title="Toggle between friendly creator language and engineering hardware offsets">
+        <div class="toolbar-controls">
+          <!-- Creator vs CS Toggle -->
+          <div class="compact-toggle-group">
             <button
-              class="toggle-btn"
-              :class="{ 'toggle-btn--active': detailLevel === 'creator' }"
+              class="compact-btn"
+              :class="{ 'compact-btn--active': detailLevel === 'creator' }"
+              title="Creator Mode: Plain English labels & animation capacity"
               @click="detailLevel = 'creator'"
             >
-              👤 Creator Mode
+              👤 Creator
             </button>
             <button
-              class="toggle-btn"
-              :class="{ 'toggle-btn--active': detailLevel === 'engineer' }"
+              class="compact-btn"
+              :class="{ 'compact-btn--active': detailLevel === 'engineer' }"
+              title="Engineer Mode: Hex addresses, access permissions & MMU"
               @click="detailLevel = 'engineer'"
             >
-              🔬 CS Engineer Mode
+              🔬 CS Engineer
             </button>
           </div>
 
           <!-- View Mode (Flash / RAM / Unified) -->
-          <div class="mode-toggle-group">
+          <div class="compact-toggle-group">
             <button
-              class="toggle-btn"
-              :class="{ 'toggle-btn--active': viewMode === 'flash' }"
+              class="compact-btn"
+              :class="{ 'compact-btn--active': viewMode === 'flash' }"
               @click="viewMode = 'flash'; selectedBlockId = 'spiffs'"
             >
-              💾 Flash ({{ formatBytes(totalFlashBytes) }})
+              💾 Flash
             </button>
             <button
-              class="toggle-btn"
-              :class="{ 'toggle-btn--active': viewMode === 'sram' }"
+              class="compact-btn"
+              :class="{ 'compact-btn--active': viewMode === 'sram' }"
               @click="viewMode = 'sram'; selectedBlockId = 'free_heap'"
             >
-              ⚡ RAM ({{ formatBytes(totalSramBytes) }})
+              ⚡ RAM
             </button>
             <button
-              class="toggle-btn"
-              :class="{ 'toggle-btn--active': viewMode === 'unified' }"
+              class="compact-btn"
+              :class="{ 'compact-btn--active': viewMode === 'unified' }"
               @click="viewMode = 'unified'; selectedBlockId = 'spiffs'"
             >
-              🧩 Unified
+              🧩 All
             </button>
           </div>
         </div>
       </div>
 
-      <!-- Heatmap Workspace: Finviz Canvas + Interactive Dossier -->
+      <!-- Main Responsive Heatmap Grid -->
       <div class="heatmap-workspace-grid">
-        <!-- Visual Treemap Canvas -->
+        <!-- Left: Proportional Tiles Canvas -->
         <div class="heatmap-canvas-card">
-          <!-- Visual Capacity Progress Summary Bar -->
-          <div class="capacity-summary-bar">
-            <span class="bar-label font-mono">MAP WEIGHT DISTRIBUTION:</span>
-            <div class="bar-track">
-              <div
-                v-for="b in currentBlocks"
-                :key="b.id"
-                class="bar-segment"
-                :style="{
-                  width: `${(b.sizeBytes / currentTotalBytes) * 100}%`,
-                  backgroundColor: b.color,
-                }"
-                :title="`${b.friendlyName}: ${formatBytes(b.sizeBytes)}`"
-              />
-            </div>
+          <!-- Thin Top Distribution Bar -->
+          <div class="distribution-bar-wrap" title="Proportional distribution of memory across chip">
+            <div
+              v-for="b in currentBlocks"
+              :key="b.id"
+              class="dist-segment"
+              :style="{
+                width: `${(b.sizeBytes / currentTotalBytes) * 100}%`,
+                backgroundColor: b.color,
+              }"
+              :title="`${b.friendlyName}: ${formatBytes(b.sizeBytes)}`"
+            />
           </div>
 
-          <!-- Finviz-Style Proportional Tiles -->
-          <div class="tiles-canvas">
+          <!-- Proportional Responsive Tiles -->
+          <div class="tiles-grid">
             <div
               v-for="block in currentBlocks"
               :key="block.id"
@@ -619,64 +560,58 @@ function selectBlock(id: string) {
                 [`cat--${block.category}`]: true,
               }"
               :style="{
-                flexGrow: Math.max(1, Math.round((block.sizeBytes / currentTotalBytes) * 100)),
                 borderTopColor: block.color,
               }"
               @mouseenter="selectBlock(block.id)"
               @click="selectBlock(block.id)"
             >
-              <!-- Glowing Top Indicator -->
+              <!-- Top Glow Bar -->
               <div class="tile-glow-strip" :style="{ backgroundColor: block.color }" />
 
-              <!-- Tile Header: Icon & Primary Label -->
+              <!-- Tile Header -->
               <div class="tile-header">
-                <div class="tile-title-group">
+                <div class="tile-identity">
                   <span class="tile-icon">{{ block.icon }}</span>
-                  <div class="tile-names">
-                    <span class="tile-primary-name">
-                      {{ detailLevel === 'creator' ? block.friendlyName : block.techName }}
-                    </span>
-                    <span v-if="detailLevel === 'creator'" class="tile-subtag font-mono">
-                      {{ block.techName }}
-                    </span>
-                  </div>
+                  <span class="tile-name">
+                    {{ detailLevel === 'creator' ? block.friendlyName : block.techName }}
+                  </span>
                 </div>
-                <span class="tile-access-badge font-mono">{{ block.access }}</span>
+                <span class="tile-access font-mono">{{ block.access }}</span>
               </div>
 
-              <!-- Center Metric: Size & Share -->
+              <!-- Tile Metric Body -->
               <div class="tile-metric-body">
-                <div class="size-row">
-                  <span class="tile-big-size font-mono">{{ formatBytes(block.sizeBytes) }}</span>
-                  <span class="tile-share-pct font-mono">({{ calculatePercent(block.sizeBytes) }})</span>
+                <div class="size-line">
+                  <span class="tile-size font-mono">{{ formatBytes(block.sizeBytes) }}</span>
+                  <span class="tile-pct font-mono">({{ calculatePercent(block.sizeBytes) }})</span>
                 </div>
 
-                <!-- Visual Mini-Fill Bar (Capacity Used vs Free) -->
-                <div class="tile-mini-fill-wrapper">
-                  <div class="mini-track">
+                <!-- Mini Progress Fill Bar -->
+                <div class="tile-progress-wrap">
+                  <div class="tile-progress-track">
                     <div
-                      class="mini-fill"
+                      class="tile-progress-fill"
                       :style="{
                         width: `${calculateBlockFill(block)}%`,
                         backgroundColor: block.color,
                       }"
                     />
                   </div>
-                  <span v-if="block.usedBytes > 0" class="mini-fill-text font-mono">
+                  <span v-if="block.usedBytes > 0" class="tile-fill-label font-mono">
                     {{ calculateBlockFill(block) }}% used
                   </span>
-                  <span v-else class="mini-fill-text font-mono text-emerald">
+                  <span v-else class="tile-fill-label font-mono text-emerald">
                     100% free
                   </span>
                 </div>
               </div>
 
-              <!-- Tile Footer: Impact Summary or Hex Bounds -->
+              <!-- Tile Footer -->
               <div class="tile-footer">
-                <span v-if="detailLevel === 'creator'" class="footer-plain-note">
+                <span v-if="detailLevel === 'creator'" class="footer-note">
                   {{ block.creatorImpact }}
                 </span>
-                <span v-else class="footer-hex-bounds font-mono">
+                <span v-else class="footer-hex font-mono">
                   {{ block.addressHex }} → {{ block.endAddressHex }}
                 </span>
               </div>
@@ -684,82 +619,74 @@ function selectBlock(id: string) {
           </div>
         </div>
 
-        <!-- Interactive Block Dossier Panel (Hover / Click Card) -->
+        <!-- Right: Interactive Block Dossier Panel -->
         <aside class="block-dossier-card">
+          <!-- Top: Identity & Summary -->
           <div class="dossier-top">
-            <div class="dossier-icon-row">
-              <span class="dossier-big-icon">{{ activeBlock.icon }}</span>
-              <div class="dossier-headings">
-                <div class="dossier-tag-row">
-                  <span class="dossier-cat font-mono" :style="{ color: activeBlock.color }">
+            <div class="dossier-header-row">
+              <span class="dossier-icon">{{ activeBlock.icon }}</span>
+              <div class="dossier-names">
+                <div class="dossier-badges">
+                  <span class="badge-cat font-mono" :style="{ color: activeBlock.color }">
                     {{ activeBlock.category.toUpperCase() }}
                   </span>
-                  <span class="dossier-status-pill" :class="`pill--${activeBlock.status}`">
+                  <span class="badge-status" :class="`pill--${activeBlock.status}`">
                     {{ activeBlock.status.toUpperCase() }}
                   </span>
                 </div>
-                <h4 class="dossier-title">{{ activeBlock.friendlyName }}</h4>
-                <span class="dossier-subname font-mono">{{ activeBlock.techName }}</span>
+                <h4 class="dossier-heading">{{ activeBlock.friendlyName }}</h4>
+                <span class="dossier-subheading font-mono">{{ activeBlock.techName }}</span>
               </div>
             </div>
 
-            <!-- Plain English Explanation -->
-            <div class="plain-english-box">
-              <p class="plain-summary-text">
-                {{ activeBlock.plainSummary }}
-              </p>
+            <div class="plain-summary-card">
+              <p class="summary-text">{{ activeBlock.plainSummary }}</p>
             </div>
           </div>
 
-          <!-- Capacity & Impact Breakdown -->
-          <div class="dossier-metrics-grid">
-            <div class="dossier-metric">
-              <span class="m-label">TOTAL ALLOCATED</span>
-              <span class="m-val font-mono" :style="{ color: activeBlock.color }">
+          <!-- Middle: 4-Item Compact Metrics Grid -->
+          <div class="dossier-stats-grid">
+            <div class="stat-box">
+              <span class="stat-lbl">ALLOCATED</span>
+              <span class="stat-val font-mono" :style="{ color: activeBlock.color }">
                 {{ formatBytes(activeBlock.sizeBytes) }}
               </span>
             </div>
-            <div class="dossier-metric">
-              <span class="m-label">SILICON SHARE</span>
-              <span class="m-val font-mono">{{ calculatePercent(activeBlock.sizeBytes) }}</span>
+            <div class="stat-box">
+              <span class="stat-lbl">CHIP SHARE</span>
+              <span class="stat-val font-mono">{{ calculatePercent(activeBlock.sizeBytes) }}</span>
             </div>
-            <div class="dossier-metric">
-              <span class="m-label">CURRENT USAGE</span>
-              <span class="m-val font-mono">
+            <div class="stat-box">
+              <span class="stat-lbl">USED NOW</span>
+              <span class="stat-val font-mono">
                 {{ activeBlock.usedBytes ? formatBytes(activeBlock.usedBytes) : '0 B (Free)' }}
               </span>
             </div>
-            <div class="dossier-metric">
-              <span class="m-label">HEADROOM LEFT</span>
-              <span class="m-val font-mono text-emerald">
+            <div class="stat-box">
+              <span class="stat-lbl">HEADROOM</span>
+              <span class="stat-val font-mono text-emerald">
                 {{ formatBytes(Math.max(0, activeBlock.sizeBytes - activeBlock.usedBytes)) }}
               </span>
             </div>
           </div>
 
-          <!-- Creator Animation & Visual Impact Note -->
-          <div class="creator-impact-box">
-            <span class="impact-badge">CREATOR IMPACT:</span>
-            <p class="impact-text">
-              {{ activeBlock.creatorImpact }}
-            </p>
+          <!-- Creator Animation Impact Box -->
+          <div class="creator-note-box">
+            <span class="note-badge">CREATOR IMPACT:</span>
+            <p class="note-text">{{ activeBlock.creatorImpact }}</p>
           </div>
 
-          <!-- Technical Offset Dossier (Collapsible/Engineering) -->
-          <div class="tech-specs-box">
-            <div class="specs-title-row">
-              <span class="specs-title font-mono">TECHNICAL ARCHITECTURE:</span>
-              <span class="specs-perm font-mono">ACCESS: {{ activeBlock.access }}</span>
+          <!-- Bottom: Tech Specs Footer -->
+          <div class="tech-footer-box">
+            <div class="tech-header font-mono">
+              <span>BASE: <strong class="text-cyan">{{ activeBlock.addressHex }}</strong></span>
+              <span>END: <strong class="text-cyan">{{ activeBlock.endAddressHex }}</strong></span>
             </div>
-            <div class="specs-addr-row font-mono">
-              <span>Start: <strong class="text-cyan">{{ activeBlock.addressHex }}</strong></span>
-              <span>End: <strong class="text-cyan">{{ activeBlock.endAddressHex }}</strong></span>
-            </div>
-            <p class="specs-tech-desc">{{ activeBlock.techDetail }}</p>
+            <p class="tech-detail-text">{{ activeBlock.techDetail }}</p>
           </div>
         </aside>
       </div>
-    </section>
+    </main>
   </div>
 </template>
 
@@ -767,69 +694,65 @@ function selectBlock(id: string) {
 .silicon-telemetry-dashboard {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.5rem;
+  height: 100%;
   width: 100%;
+  overflow: hidden; /* Strict: zero scrollbars */
 }
 
 /* ========================================================= */
-/* 1. TOP UNIFIED TELEMETRY HUD BAR                          */
+/* 1. COMPACT TOP HUD STRIP                                  */
 /* ========================================================= */
-.telemetry-hud-card {
+.compact-hud-strip {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.hud-top-strip {
+  border-radius: 8px;
+  padding: 0.45rem 0.85rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-  padding-bottom: 0.75rem;
-  flex-wrap: wrap;
+  gap: 0.85rem;
+  flex-shrink: 0;
+  height: 52px;
 }
 
-.device-identity {
+.hud-left {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .hud-badge {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
-  padding: 0.18rem 0.5rem;
+  letter-spacing: 0.05em;
+  padding: 0.12rem 0.4rem;
   border-radius: 4px;
   background: rgba(56, 189, 248, 0.12);
   color: #38bdf8;
   border: 1px solid rgba(56, 189, 248, 0.3);
 }
 
-.status-indicator {
+.conn-pill {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.72rem;
+  gap: 0.3rem;
+  font-size: 0.66rem;
   font-weight: 700;
-  padding: 0.15rem 0.55rem;
+  padding: 0.1rem 0.45rem;
   border-radius: 9999px;
 }
 
-.status-live {
+.conn-live {
   background: rgba(16, 185, 129, 0.12);
   color: #10b981;
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
-.live-dot {
-  width: 6px;
-  height: 6px;
+.conn-dot {
+  width: 5px;
+  height: 5px;
   border-radius: 9999px;
   background: #10b981;
   animation: pulse-dot 2s infinite ease-in-out;
@@ -837,56 +760,150 @@ function selectBlock(id: string) {
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 0.35; transform: scale(0.8); }
 }
 
-.status-demo {
+.conn-demo {
   background: var(--color-bg-base);
   color: var(--color-text-muted);
   border: 1px solid var(--color-border);
 }
 
-.demo-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: var(--color-text-muted);
-}
-
-.chip-label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-}
-
-.hud-quick-pills {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.hud-pill {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 0.2rem 0.55rem;
+.chip-name {
   font-size: 0.72rem;
   color: var(--color-text-secondary);
 }
 
-.pill-icon {
-  font-size: 0.8rem;
+/* Center HUD Gauges */
+.hud-center {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-shrink: 0;
 }
 
-.pill-val {
+.mini-gauge-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.mini-gauge-svg-wrap {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.mini-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.mini-gauge-bg {
+  fill: none;
+  stroke: var(--color-border-subtle);
+  stroke-width: 4;
+}
+
+.mini-gauge-fill {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s ease;
+}
+
+.mini-gauge-center-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.mini-gauge-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.text-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.text-val {
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.hud-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--color-border);
+}
+
+.mini-watermark-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 120px;
+}
+
+.watermark-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mini-watermark-track {
+  width: 100%;
+  height: 4px;
+  background: var(--color-border-subtle);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.mini-watermark-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #10b981);
+  border-radius: 9999px;
+}
+
+/* Right HUD Chips */
+.hud-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.hud-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+  color: var(--color-text-secondary);
+}
+
+.chip-icon {
+  font-size: 0.72rem;
+}
+
+.chip-val {
   font-weight: 700;
   color: var(--color-text-primary);
 }
 
-.pill-fps .pill-val {
+.pill-fps .chip-val {
   color: #38bdf8;
 }
 
@@ -895,340 +912,174 @@ function selectBlock(id: string) {
   color: #10b981;
 }
 
-/* Health Barometers Grid */
-.hud-meters-grid {
-  display: grid;
-  grid-template-columns: minmax(320px, 1.2fr) minmax(280px, 1fr);
-  gap: 1.25rem;
-}
-
-.meter-card {
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 0.85rem 1rem;
-}
-
-.ram-gauge-card {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-}
-
-.radial-gauge-wrapper {
-  position: relative;
-  width: 90px;
-  height: 90px;
-  flex-shrink: 0;
-}
-
-.radial-svg {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-
-.gauge-bg {
-  fill: none;
-  stroke: var(--color-border-subtle);
-  stroke-width: 8;
-}
-
-.gauge-bar {
-  fill: none;
-  stroke-width: 8;
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.radial-center-content {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.gauge-main-val {
-  font-size: 1.15rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.gauge-sub-label {
-  font-size: 0.58rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  letter-spacing: 0.05em;
-  margin-top: 2px;
-}
-
-.meter-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  flex: 1;
-}
-
-.meter-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.meter-title {
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
-.meter-badge {
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 0.12rem 0.45rem;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.meter-plain-desc {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  line-height: 1.35;
-  margin: 0;
-}
-
-.meter-stat-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-  border-top: 1px solid var(--color-border-subtle);
-  padding-top: 0.35rem;
-}
-
-.leak-guard-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.title-with-icon {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-
-.title-with-icon .icon {
-  font-size: 1.1rem;
-}
-
-.meter-sub {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--color-text-secondary);
-}
-
-.watermark-bar-track {
-  width: 100%;
-  height: 10px;
-  background: var(--color-border-subtle);
-  border-radius: 9999px;
-  overflow: hidden;
-  position: relative;
-}
-
-.watermark-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #38bdf8, #10b981);
-  border-radius: 9999px;
-  transition: width 0.6s ease;
-}
-
-.watermark-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-}
-
 /* ========================================================= */
-/* 2. FINVIZ-STYLE SILICON HEATMAP (Deeply Visual)           */
+/* 2. SILICON HEATMAP & DOSSIER (Fills 100% Height)          */
 /* ========================================================= */
-.treemap-section {
+.treemap-main-card {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 1.25rem;
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.45rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
+/* Toolbar */
 .section-toolbar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  height: 32px;
   border-bottom: 1px solid var(--color-border-subtle);
-  padding-bottom: 0.85rem;
-  flex-wrap: wrap;
+  padding-bottom: 0.35rem;
 }
 
-.toolbar-left {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.title-row {
+.toolbar-title-group {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
-.section-icon {
-  font-size: 1.1rem;
+.toolbar-icon {
+  font-size: 0.95rem;
 }
 
-.section-heading {
-  font-size: 1.05rem;
+.toolbar-title {
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0;
 }
 
-.section-desc {
-  font-size: 0.78rem;
-  color: var(--color-text-secondary);
-  margin: 0;
+.toolbar-subtag {
+  font-size: 0.64rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
 }
 
-.toolbar-right {
+.toolbar-controls {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-.mode-toggle-group {
+.compact-toggle-group {
   display: flex;
   background: var(--color-bg-base);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 2px;
-  gap: 2px;
+  border-radius: 6px;
+  padding: 1px;
+  gap: 1px;
 }
 
-.toggle-btn {
-  font-size: 0.72rem;
+.compact-btn {
+  font-size: 0.66rem;
   font-weight: 600;
-  padding: 0.35rem 0.65rem;
-  border-radius: 6px;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
   border: none;
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
   white-space: nowrap;
 }
 
-.toggle-btn:hover {
+.compact-btn:hover {
   color: var(--color-text-primary);
 }
 
-.toggle-btn--active {
+.compact-btn--active {
   background: var(--color-bg-elevated);
   color: var(--color-accent);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-/* Heatmap Grid Layout */
+/* Workspace Grid */
 .heatmap-workspace-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.85fr);
-  gap: 1.25rem;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1.45fr) minmax(290px, 0.85fr);
+  gap: 0.65rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
+/* Left Canvas */
 .heatmap-canvas-card {
   background: var(--color-bg-base);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 0.75rem;
+  border-radius: 6px;
+  padding: 0.45rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  min-height: 380px;
+  gap: 0.4rem;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* Top Distribution Bar */
-.capacity-summary-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.bar-label {
-  font-size: 0.62rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  letter-spacing: 0.05em;
-}
-
-.bar-track {
+.distribution-bar-wrap {
   width: 100%;
-  height: 6px;
+  height: 4px;
   background: var(--color-border-subtle);
   border-radius: 9999px;
   display: flex;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
-.bar-segment {
+.dist-segment {
   height: 100%;
   transition: width 0.3s ease;
 }
 
-/* Proportional Tiles Canvas */
-.tiles-canvas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+/* Proportional Tiles Grid */
+.tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 0.4rem;
   flex: 1;
-  align-content: stretch;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .finviz-tile {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
-  border-top-width: 3px;
-  border-radius: 6px;
-  padding: 0.65rem 0.8rem;
+  border-top-width: 2.5px;
+  border-radius: 5px;
+  padding: 0.45rem 0.55rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-width: 155px;
-  min-height: 110px;
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s ease;
+  min-height: 0;
 }
 
 .finviz-tile:hover {
-  transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
 }
 
 .tile--active {
   border-color: #38bdf8 !important;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.3), 0 8px 20px rgba(0, 0, 0, 0.5);
   background: var(--color-bg-elevated);
+  box-shadow: 0 0 0 1.5px rgba(56, 189, 248, 0.3), 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .tile-glow-strip {
@@ -1242,166 +1093,174 @@ function selectBlock(id: string) {
 
 .tile-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
-.tile-title-group {
+.tile-identity {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.3rem;
+  overflow: hidden;
 }
 
 .tile-icon {
-  font-size: 1rem;
+  font-size: 0.82rem;
   flex-shrink: 0;
 }
 
-.tile-names {
-  display: flex;
-  flex-direction: column;
-}
-
-.tile-primary-name {
-  font-size: 0.78rem;
+.tile-name {
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--color-text-primary);
-  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.tile-subtag {
-  font-size: 0.62rem;
-  color: var(--color-text-muted);
-}
-
-.tile-access-badge {
-  font-size: 0.6rem;
+.tile-access {
+  font-size: 0.55rem;
   color: var(--color-text-muted);
   background: rgba(255, 255, 255, 0.05);
-  padding: 0.08rem 0.28rem;
-  border-radius: 3px;
+  padding: 0.05rem 0.2rem;
+  border-radius: 2px;
   flex-shrink: 0;
 }
 
 .tile-metric-body {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  margin: 0.4rem 0;
+  gap: 0.18rem;
+  margin: 0.1rem 0;
 }
 
-.size-row {
+.size-line {
   display: flex;
   align-items: baseline;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
-.tile-big-size {
-  font-size: 1.05rem;
+.tile-size {
+  font-size: 0.92rem;
   font-weight: 800;
   color: var(--color-text-primary);
+  line-height: 1;
 }
 
-.tile-share-pct {
-  font-size: 0.7rem;
+.tile-pct {
+  font-size: 0.62rem;
   color: var(--color-text-secondary);
 }
 
-.tile-mini-fill-wrapper {
+.tile-progress-wrap {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
 }
 
-.mini-track {
+.tile-progress-track {
   flex: 1;
-  height: 5px;
+  height: 4px;
   background: var(--color-border-subtle);
   border-radius: 9999px;
   overflow: hidden;
 }
 
-.mini-fill {
+.tile-progress-fill {
   height: 100%;
   border-radius: 9999px;
   transition: width 0.3s ease;
 }
 
-.mini-fill-text {
-  font-size: 0.62rem;
+.tile-fill-label {
+  font-size: 0.56rem;
   color: var(--color-text-muted);
   white-space: nowrap;
 }
 
 .tile-footer {
-  font-size: 0.66rem;
-  color: var(--color-text-secondary);
   border-top: 1px solid var(--color-border-subtle);
-  padding-top: 0.3rem;
-  line-height: 1.25;
-}
-
-.footer-plain-note {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  padding-top: 0.2rem;
   overflow: hidden;
 }
 
-.footer-hex-bounds {
-  color: var(--color-text-muted);
+.footer-note {
+  font-size: 0.6rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 
-/* ========================================================= */
-/* 3. INTERACTIVE BLOCK DOSSIER PANEL                        */
-/* ========================================================= */
+.footer-hex {
+  font-size: 0.58rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* Right Dossier Panel */
 .block-dossier-card {
   background: var(--color-bg-base);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 1.15rem;
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.95rem;
+  justify-content: space-between;
+  gap: 0.4rem;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.dossier-icon-row {
+.dossier-top {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
-.dossier-big-icon {
-  font-size: 2rem;
+.dossier-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.dossier-icon {
+  font-size: 1.5rem;
   line-height: 1;
   flex-shrink: 0;
 }
 
-.dossier-headings {
+.dossier-names {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.1rem;
+  overflow: hidden;
 }
 
-.dossier-tag-row {
+.dossier-badges {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
 }
 
-.dossier-cat {
-  font-size: 0.64rem;
+.badge-cat {
+  font-size: 0.58rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
-.dossier-status-pill {
-  font-size: 0.6rem;
+.badge-status {
+  font-size: 0.54rem;
   font-weight: 700;
-  padding: 0.08rem 0.35rem;
+  padding: 0.05rem 0.3rem;
   border-radius: 9999px;
+  text-transform: uppercase;
 }
 
 .pill--optimal, .pill--headroom {
@@ -1422,125 +1281,119 @@ function selectBlock(id: string) {
   border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
-.dossier-title {
-  font-size: 1rem;
+.dossier-heading {
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.dossier-subname {
-  font-size: 0.68rem;
+.dossier-subheading {
+  font-size: 0.62rem;
   color: var(--color-text-muted);
 }
 
-.plain-english-box {
+.plain-summary-card {
   background: var(--color-bg-surface);
-  border-left: 3px solid #38bdf8;
-  border-radius: 4px;
-  padding: 0.65rem 0.8rem;
-  margin-top: 0.35rem;
+  border-left: 2.5px solid #38bdf8;
+  border-radius: 3px;
+  padding: 0.4rem 0.55rem;
 }
 
-.plain-summary-text {
-  font-size: 0.76rem;
+.summary-text {
+  font-size: 0.68rem;
   color: var(--color-text-primary);
-  line-height: 1.45;
+  line-height: 1.35;
   margin: 0;
 }
 
-.dossier-metrics-grid {
+/* 4-Item Compact Stats */
+.dossier-stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.55rem;
+  gap: 0.35rem;
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-subtle);
-  border-radius: 6px;
-  padding: 0.75rem;
+  border-radius: 5px;
+  padding: 0.45rem;
 }
 
-.dossier-metric {
+.stat-box {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.05rem;
 }
 
-.m-label {
-  font-size: 0.62rem;
+.stat-lbl {
+  font-size: 0.54rem;
   color: var(--color-text-muted);
+  letter-spacing: 0.03em;
+}
+
+.stat-val {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+/* Creator Note */
+.creator-note-box {
+  background: rgba(16, 185, 129, 0.07);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: 5px;
+  padding: 0.4rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.note-badge {
+  font-size: 0.54rem;
+  font-weight: 800;
+  color: #10b981;
   letter-spacing: 0.04em;
 }
 
-.m-val {
-  font-size: 0.84rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
-.creator-impact-box {
-  background: rgba(16, 185, 129, 0.07);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  border-radius: 6px;
-  padding: 0.65rem 0.8rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.impact-badge {
-  font-size: 0.62rem;
-  font-weight: 800;
-  color: #10b981;
-  letter-spacing: 0.05em;
-}
-
-.impact-text {
-  font-size: 0.74rem;
+.note-text {
+  font-size: 0.66rem;
   color: var(--color-text-secondary);
-  line-height: 1.4;
+  line-height: 1.3;
   margin: 0;
 }
 
-.tech-specs-box {
+/* Tech Specs Footer */
+.tech-footer-box {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-subtle);
-  border-radius: 6px;
-  padding: 0.65rem 0.8rem;
+  border-radius: 5px;
+  padding: 0.4rem 0.55rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  margin-top: auto;
+  gap: 0.2rem;
 }
 
-.specs-title-row {
+.tech-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  font-size: 0.56rem;
+  color: var(--color-text-muted);
+}
+
+.tech-detail-text {
   font-size: 0.62rem;
   color: var(--color-text-muted);
-}
-
-.specs-addr-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-}
-
-.specs-tech-desc {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-  line-height: 1.35;
+  line-height: 1.25;
   margin: 0;
 }
 
 .text-cyan { color: #38bdf8; }
 .text-emerald { color: #10b981; }
 
-@media (max-width: 1024px) {
-  .hud-meters-grid {
-    grid-template-columns: 1fr;
-  }
+@media (max-width: 900px) {
   .heatmap-workspace-grid {
     grid-template-columns: 1fr;
   }
