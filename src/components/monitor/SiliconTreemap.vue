@@ -572,18 +572,18 @@ function selectBlock(id: string) {
               <!-- Glass Specular Reflection Highlight -->
               <div class="tile-glass-specular" />
 
-              <!-- Liquid in a Glass Container Fill Layer -->
+              <!-- Vertical Animated Liquid Fill (Rises from bottom like water in a glass) -->
               <div
                 class="tile-liquid-fill"
                 :style="{
-                  width: `${calculateBlockFill(block)}%`,
-                  background: `linear-gradient(90deg, ${block.color}22 0%, ${block.color}45 85%, ${block.color}70 100%)`,
-                  borderRight: block.usedBytes > 0 ? `2.5px solid ${block.color}` : 'none',
-                  boxShadow: block.usedBytes > 0 ? `2px 0 16px ${block.color}, 0 0 24px ${block.color}50` : 'none',
+                  height: `${Math.max(block.usedBytes > 0 ? 8 : 0, calculateBlockFill(block))}%`,
+                  background: `linear-gradient(180deg, ${block.color}50 0%, ${block.color}25 40%, ${block.color}15 100%)`,
+                  borderTop: block.usedBytes > 0 ? `2.5px solid ${block.color}` : 'none',
+                  boxShadow: block.usedBytes > 0 ? `0 -2px 14px ${block.color}, 0 -6px 24px ${block.color}45` : 'none',
                 }"
               >
-                <!-- Glowing Meniscus Edge Line -->
-                <div v-if="block.usedBytes > 0" class="meniscus-edge" :style="{ backgroundColor: block.color }" />
+                <!-- Animated Water Surface Meniscus / Wave at the liquid boundary -->
+                <div v-if="block.usedBytes > 0" class="water-surface-wave" :style="{ backgroundColor: block.color }" />
               </div>
 
               <!-- Top Accent Glow Strip -->
@@ -1154,26 +1154,42 @@ function selectBlock(id: string) {
   border-top-right-radius: 7px;
 }
 
-/* Liquid Layer inside the Glass Chamber */
+/* Vertical Animated Liquid Fill rising from bottom of Glass Container */
 .tile-liquid-fill {
   position: absolute;
-  top: 0;
   bottom: 0;
   left: 0;
+  right: 0;
   pointer-events: none;
   z-index: 1;
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
 }
 
-/* Glowing Meniscus Edge Line */
-.meniscus-edge {
+/* Animated Water Surface Shimmer / Wave at the liquid boundary */
+.water-surface-wave {
   position: absolute;
   top: 0;
-  bottom: 0;
+  left: 0;
   right: 0;
-  width: 2.5px;
-  box-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
-  opacity: 0.95;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.7) 50%, transparent 100%);
+  animation: liquid-wave 2.8s infinite ease-in-out;
+}
+
+@keyframes liquid-wave {
+  0% {
+    transform: translateX(-50%) scaleY(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translateX(50%) scaleY(1.5);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(-50%) scaleY(1);
+    opacity: 0.45;
+  }
 }
 
 .tile-glow-strip {
