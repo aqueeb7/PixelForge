@@ -12,6 +12,7 @@ import DeviceDossier from '../components/monitor/DeviceDossier.vue'
 
 // Diagnostics, Console & Tools Components
 import MemoryGauges from '../components/monitor/MemoryGauges.vue'
+import SiliconTreemap from '../components/monitor/SiliconTreemap.vue'
 import SerialTerminal from '../components/monitor/SerialTerminal.vue'
 import PacketInspector from '../components/monitor/PacketInspector.vue'
 import FirmwareFlasher from '../components/monitor/FirmwareFlasher.vue'
@@ -243,6 +244,7 @@ async function handleSave() {
       <!-- MODE 2: Runtime Telemetry (Gauges, Allocations & Framerate) -->
       <div v-else-if="activeTab === 'telemetry'" class="tab-pane telemetry-pane">
         <MemoryGauges />
+        <SiliconTreemap />
       </div>
 
       <!-- MODE 3: Serial Console & Packet Demux Inspector -->
@@ -644,6 +646,9 @@ async function handleSave() {
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 /* MODE 3: Serial Console & Packet Grid */
