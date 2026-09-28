@@ -1369,11 +1369,13 @@ onUnmounted(() => {
 }
 
 .legend-item--active {
-  background: rgba(56, 189, 248, 0.22) !important;
-  border-color: #38bdf8 !important;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5), inset 0 0 4px rgba(56, 189, 248, 0.25);
   color: #ffffff !important;
   transform: translateY(-1px);
+}
+
+.legend-item--active .legend-color-dot {
+  transform: scale(1.25);
+  box-shadow: 0 0 6px currentColor;
 }
 
 .legend-color-dot {
