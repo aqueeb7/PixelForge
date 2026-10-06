@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Sidebar from './components/Sidebar.vue'
 import StatusBar from './components/StatusBar.vue'
+import ProcessHUD from './components/ProcessHUD.vue'
 </script>
 
 <template>
@@ -9,6 +10,7 @@ import StatusBar from './components/StatusBar.vue'
     <div class="app-content">
       <router-view class="app-view" />
       <StatusBar />
+      <ProcessHUD />
     </div>
   </div>
 </template>

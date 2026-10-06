@@ -136,6 +136,8 @@
  .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson.h \
  .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson.hpp \
  .pio/libdeps/esp32dev/ArduinoJson/src/ArduinoJson/Configuration.hpp \
+ C:/Users/DELL/.platformio/packages/framework-arduinoespressif32/libraries/LittleFS/src/LittleFS.h \
+ C:/Users/DELL/.platformio/packages/framework-arduinoespressif32/libraries/FS/src/FS.h \
  src/config.h src/protocol.h src/crc8.h src/display.h \
  .pio/libdeps/esp32dev/U8g2/src/U8g2lib.h \
  C:/Users/DELL/.platformio/packages/framework-arduinoespressif32/cores/esp32/Print.h \

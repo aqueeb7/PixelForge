@@ -5,6 +5,8 @@
  */
 
 import type { VideoReel } from '../types/video'
+import { DisplayProfileFactory } from '../factories/DisplayProfileFactory'
+import { ExporterFactory } from '../factories/ExporterFactory'
 
 /**
  * Generates a single fully self-contained Arduino .ino file containing the
@@ -47,6 +49,7 @@ export function generateFirmwareSketch(): string {
 #include <Wire.h>
 #include <U8g2lib.h>
 #include <ArduinoJson.h>
+#include <LittleFS.h>
 
 // ============================================================================
 // Configuration
@@ -306,14 +309,71 @@ static uint32_t lastFrameRenderTime = 0;
 static float    smoothedFps = 0.0f;
 
 // Autonomous Reel Animation Engine
-#define MAX_REEL_FRAMES 120
-static uint8_t*  reelFrames[MAX_REEL_FRAMES] = {nullptr};
+#define MAX_RAM_FRAMES 120
+#define MAX_FLASH_REEL_FRAMES 1500
+static uint8_t*  reelFrames[MAX_RAM_FRAMES] = {nullptr};
+static uint8_t   streamFrameBuf[CANONICAL_FRAME_SIZE];
 static uint16_t  reelFrameCount   = 0;
 static uint16_t  reelTargetFps    = 15;
 static uint32_t  reelIntervalMs   = 66;
 static bool      isPlayingReel    = false;
 static uint16_t  reelFrameIdx     = 0;
 static uint32_t  lastReelTime     = 0;
+
+static File      activeReelWriteFile;
+static File      activeReelReadFile;
+static bool      littleFsReady    = false;
+
+void freeReelMemory() {
+    for (int i = 0; i < MAX_RAM_FRAMES; i++) {
+        if (reelFrames[i]) { free(reelFrames[i]); reelFrames[i] = nullptr; }
+    }
+}
+
+void openReelReadStream() {
+    if (activeReelReadFile) activeReelReadFile.close();
+    if (littleFsReady && LittleFS.exists("/reel.pfr")) {
+        activeReelReadFile = LittleFS.open("/reel.pfr", "r");
+    }
+}
+
+bool loadReelFromFlash() {
+    if (!littleFsReady || !LittleFS.exists("/reel.pfr")) return false;
+    File f = LittleFS.open("/reel.pfr", "r");
+    if (!f || f.size() < 8) { if (f) f.close(); return false; }
+
+    uint8_t hdr[8];
+    if (f.read(hdr, 8) != 8) { f.close(); return false; }
+    if (hdr[0] != 'P' || hdr[1] != 'F' || hdr[2] != 'R' || hdr[3] != '1') { f.close(); return false; }
+
+    uint16_t savedCount = ((uint16_t)hdr[4] << 8) | hdr[5];
+    uint16_t savedFps   = ((uint16_t)hdr[6] << 8) | hdr[7];
+
+    freeReelMemory();
+    reelFrameCount = min((int)savedCount, MAX_FLASH_REEL_FRAMES);
+    reelTargetFps  = savedFps > 0 ? savedFps : 15;
+    reelIntervalMs = 1000 / reelTargetFps;
+
+    uint16_t ramFrames = min((int)reelFrameCount, MAX_RAM_FRAMES);
+    for (int i = 0; i < (int)ramFrames; i++) {
+        reelFrames[i] = (uint8_t*)malloc(CANONICAL_FRAME_SIZE);
+        if (reelFrames[i]) {
+            f.read(reelFrames[i], CANONICAL_FRAME_SIZE);
+        } else {
+            break;
+        }
+    }
+    f.close();
+
+    if (reelFrameCount > 0) {
+        openReelReadStream();
+        isPlayingReel = true;
+        reelFrameIdx = 0;
+        lastReelTime = millis();
+        return true;
+    }
+    return false;
+}
 
 // ============================================================================
 // Command Dispatcher
@@ -334,12 +394,15 @@ void handleCommand(const RxPacket& p) {
             doc["display_height"]   = DISPLAY_HEIGHT;
             doc["color_depth"]      = DISPLAY_COLOR_DEPTH;
             doc["display_controller"] = DISPLAY_CONTROLLER_NAME;
+            doc["flash_storage"]    = littleFsReady ? "LittleFS" : "None";
             char buf[256]; serializeJson(doc, buf);
             protocol.sendDeviceInfo(buf);
             break;
         }
 
         case CMD_CLEAR_DISPLAY:
+            if (activeReelWriteFile) { activeReelWriteFile.flush(); activeReelWriteFile.close(); }
+            isPlayingReel = false;
             display.clear();
             protocol.sendClearAck(0x00);
             break;
@@ -348,6 +411,7 @@ void handleCommand(const RxPacket& p) {
             if (p.length != CANONICAL_FRAME_SIZE) {
                 protocol.sendFrameAck(0x01);
             } else {
+                isPlayingReel = false;
                 display.renderCanonicalFrame(p.payload);
                 protocol.sendFrameAck(0x00);
                 totalFramesRendered++;
@@ -375,28 +439,41 @@ void handleCommand(const RxPacket& p) {
             ESP.restart();
             break;
 
-        // ── Autonomous Reel Upload ──────────────────────────────────────────
+        // ── Autonomous Reel Upload (persists into LittleFS Flash) ───────────
         case CMD_START_REEL_UPLOAD: {
             if (p.length < 4) { protocol.sendError(0x02, "Invalid reel start payload"); break; }
             isPlayingReel = false;
-            for (int i = 0; i < MAX_REEL_FRAMES; i++) {
-                if (reelFrames[i]) { free(reelFrames[i]); reelFrames[i] = nullptr; }
-            }
+            freeReelMemory();
+
             uint16_t reqCount = ((uint16_t)p.payload[0] << 8) | p.payload[1];
             uint16_t reqFps   = ((uint16_t)p.payload[2] << 8) | p.payload[3];
-            reelFrameCount  = min((int)reqCount, MAX_REEL_FRAMES);
+            reelFrameCount  = min((int)reqCount, MAX_FLASH_REEL_FRAMES);
             reelTargetFps   = reqFps > 0 ? reqFps : 15;
             reelIntervalMs  = 1000 / reelTargetFps;
 
-            int allocated = 0;
-            for (int i = 0; i < (int)reelFrameCount; i++) {
+            uint16_t ramFrames = min((int)reelFrameCount, MAX_RAM_FRAMES);
+            for (int i = 0; i < (int)ramFrames; i++) {
                 reelFrames[i] = (uint8_t*)malloc(CANONICAL_FRAME_SIZE);
-                if (reelFrames[i]) { allocated++; }
-                else { reelFrameCount = allocated; break; }
+                if (!reelFrames[i]) break;
             }
             reelFrameIdx = 0;
+
+            if (littleFsReady) {
+                if (activeReelWriteFile) activeReelWriteFile.close();
+                if (activeReelReadFile) activeReelReadFile.close();
+                activeReelWriteFile = LittleFS.open("/reel.pfr", "w");
+                if (activeReelWriteFile) {
+                    uint8_t hdr[8] = {
+                        'P', 'F', 'R', '1',
+                        (uint8_t)(reelFrameCount >> 8), (uint8_t)(reelFrameCount & 0xFF),
+                        (uint8_t)(reelTargetFps >> 8),  (uint8_t)(reelTargetFps & 0xFF)
+                    };
+                    activeReelWriteFile.write(hdr, 8);
+                }
+            }
+
             if (reelFrameCount > 0) protocol.sendPacket(RESP_REEL_UPLOAD_ACK, nullptr, 0);
-            else protocol.sendError(0x05, "Insufficient RAM for reel");
+            else protocol.sendError(0x05, "Insufficient memory for reel");
             break;
         }
 
@@ -405,16 +482,23 @@ void handleCommand(const RxPacket& p) {
                 protocol.sendError(0x04, "Invalid reel frame payload length"); break;
             }
             uint16_t fi = ((uint16_t)p.payload[0] << 8) | p.payload[1];
-            if (fi < reelFrameCount && reelFrames[fi]) {
-                memcpy(reelFrames[fi], &p.payload[2], CANONICAL_FRAME_SIZE);
+            if (fi < reelFrameCount) {
+                if (fi < MAX_RAM_FRAMES && reelFrames[fi]) {
+                    memcpy(reelFrames[fi], &p.payload[2], CANONICAL_FRAME_SIZE);
+                }
+                if (activeReelWriteFile) {
+                    activeReelWriteFile.write(&p.payload[2], CANONICAL_FRAME_SIZE);
+                }
                 protocol.sendPacket(RESP_REEL_FRAME_ACK, nullptr, 0);
             } else {
-                protocol.sendError(0x03, "Reel frame index out of range");
+                protocol.sendPacket(RESP_REEL_FRAME_ACK, nullptr, 0);
             }
             break;
         }
 
         case CMD_PLAY_REEL: {
+            if (activeReelWriteFile) { activeReelWriteFile.flush(); activeReelWriteFile.close(); }
+            openReelReadStream();
             if (p.length >= 2) {
                 uint16_t fps = ((uint16_t)p.payload[0] << 8) | p.payload[1];
                 if (fps > 0) { reelTargetFps = fps; reelIntervalMs = 1000 / fps; }
@@ -427,6 +511,8 @@ void handleCommand(const RxPacket& p) {
         }
 
         case CMD_STOP_REEL:
+            if (activeReelWriteFile) { activeReelWriteFile.flush(); activeReelWriteFile.close(); }
+            if (activeReelReadFile) { activeReelReadFile.close(); }
             isPlayingReel = false;
             protocol.sendPacket(RESP_STOP_REEL_ACK, nullptr, 0);
             break;
@@ -445,6 +531,12 @@ void setup() {
     delay(50);
     display.init();
     display.clear();
+
+    // Mount LittleFS partition and auto-play any previously saved reel
+    littleFsReady = LittleFS.begin(true);
+    if (littleFsReady) {
+        loadReelFromFlash();
+    }
 }
 
 void loop() {
@@ -454,14 +546,21 @@ void loop() {
         protocol.consumePacket();
     }
 
-    // Autonomous reel playback engine (runs independently of USB connection)
+    // Autonomous reel playback engine (runs independently across power cycles)
     if (isPlayingReel && reelFrameCount > 0) {
         uint32_t now = millis();
         if (now - lastReelTime >= reelIntervalMs) {
             lastReelTime = now;
-            if (reelFrames[reelFrameIdx]) {
+            if (reelFrameIdx < MAX_RAM_FRAMES && reelFrames[reelFrameIdx]) {
                 display.renderCanonicalFrame(reelFrames[reelFrameIdx]);
                 totalFramesRendered++;
+            } else if (activeReelReadFile) {
+                uint32_t offset = 8 + (uint32_t)reelFrameIdx * CANONICAL_FRAME_SIZE;
+                if (activeReelReadFile.seek(offset)) {
+                    activeReelReadFile.read(streamFrameBuf, CANONICAL_FRAME_SIZE);
+                    display.renderCanonicalFrame(streamFrameBuf);
+                    totalFramesRendered++;
+                }
             }
             reelFrameIdx = (reelFrameIdx + 1) % reelFrameCount;
         }
@@ -488,305 +587,72 @@ export function downloadFirmwareSketch(): void {
 
 
 /**
- * Generates a clean, copy-paste ready C/C++ header (.h) with PROGMEM storage
- * for Arduino IDE, PlatformIO, or ESP-IDF projects.
+ * Generates a clean, copy-paste ready C/C++ header (.h) with PROGMEM storage.
+ * Delegates to ExporterFactory (Spec 007).
  */
 export function generateCppHeader(reel: VideoReel): string {
-  const frameCount = reel.frames.length
-  const varPrefix = reel.name
-    .toLowerCase()
-    .replace(/[^a-z0-9_]/g, '_')
-    .replace(/^_+|_+$/g, '') || 'reel'
-
-  let code = `// ============================================================================\n`
-  code += `// Generated by PixelForge Video to 128x64 OLED Converter\n`
-  code += `// Project: ${reel.name} (${reel.sourceFilename})\n`
-  code += `// Algorithm: ${reel.settings.ditherAlgorithm} | FPS: ${reel.targetFps}\n`
-  code += `// Frames: ${frameCount} | Total Size: ${frameCount * 1024} bytes\n`
-  code += `// ============================================================================\n\n`
-  code += `#pragma once\n`
-  code += `#include <Arduino.h>\n\n`
-  code += `#define ${varPrefix.toUpperCase()}_FRAME_COUNT ${frameCount}\n`
-  code += `#define ${varPrefix.toUpperCase()}_WIDTH 128\n`
-  code += `#define ${varPrefix.toUpperCase()}_HEIGHT 64\n`
-  code += `#define ${varPrefix.toUpperCase()}_FPS ${reel.targetFps}\n\n`
-  code += `// Canonical 128x64 monochrome bitmaps (1024 bytes / frame, MSB first)\n`
-  code += `const uint8_t PROGMEM ${varPrefix}_frames[${frameCount}][1024] = {\n`
-
-  for (let f = 0; f < frameCount; f++) {
-    const frame = reel.frames[f]
-    code += `  { // Frame ${f}\n`
-    for (let row = 0; row < 64; row++) {
-      code += `    `
-      const rowOffset = row * 16
-      for (let b = 0; b < 16; b++) {
-        const byteVal = frame[rowOffset + b]
-        code += `0x${byteVal.toString(16).padStart(2, '0').toUpperCase()}, `
-      }
-      code += `\n`
-    }
-    code += f === frameCount - 1 ? `  }\n` : `  },\n`
-  }
-
-  code += `};\n`
-  return code
+  const profile = DisplayProfileFactory.getDefaultProfile()
+  const res = ExporterFactory.export('cpp-header', reel.frames, profile, {
+    variableName: reel.name,
+    includeDrawFunction: true,
+    fps: reel.targetFps,
+    loop: true,
+    reelName: reel.name,
+    sourceFilename: reel.sourceFilename,
+    algorithmName: reel.settings.ditherAlgorithm,
+  }) as { data: string }
+  return res.data
 }
 
 /**
- * Generates a complete, self-contained standalone Arduino sketch (.ino)
- * that compiles and runs immediately on an ESP32 connected to an I2C OLED display.
+ * Generates a complete, self-contained standalone Arduino sketch (.ino).
+ * Delegates to ExporterFactory (Spec 007).
  */
 export function generateStandaloneArduinoSketch(reel: VideoReel): string {
-  const frameCount = reel.frames.length
-  const fps = Math.max(1, reel.targetFps || 15)
-
-  let code = `// ============================================================================\n`
-  code += `// PixelForge Standalone ESP32 OLED Animation Player\n`
-  code += `// Project: ${reel.name} (${reel.sourceFilename})\n`
-  code += `// Algorithm: ${reel.settings.ditherAlgorithm} | Target FPS: ${fps}\n`
-  code += `// Total Frames: ${frameCount} | Infinite Repeat Loop\n`
-  code += `// ============================================================================\n\n`
-  code += `#include <Arduino.h>\n`
-  code += `#include <Wire.h>\n`
-  code += `#include <U8g2lib.h>\n\n`
-  code += `// Standard ESP32 I2C Pinout\n`
-  code += `#define OLED_SDA 21\n`
-  code += `#define OLED_SCL 22\n`
-  code += `#define OLED_ADDR 0x3C\n\n`
-  code += `// Initialize U8g2 driver for 128x64 I2C OLED\n`
-  code += `// (Works with both SH1106 and SSD1306 controllers)\n`
-  code += `U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, OLED_SCL, OLED_SDA);\n\n`
-  code += `#define ANIMATION_FRAME_COUNT ${frameCount}\n`
-  code += `#define ANIMATION_FPS ${fps}\n`
-  code += `#define FRAME_INTERVAL_MS (1000 / ANIMATION_FPS)\n\n`
-  code += `// 128x64 Canonical 1-bit frames stored in Flash (PROGMEM)\n`
-  code += `const uint8_t PROGMEM animation_frames[${frameCount}][1024] = {\n`
-
-  for (let f = 0; f < frameCount; f++) {
-    const frame = reel.frames[f]
-    code += `  { // Frame ${f}\n`
-    for (let row = 0; row < 64; row++) {
-      code += `    `
-      const rowOffset = row * 16
-      for (let b = 0; b < 16; b++) {
-        const byteVal = frame[rowOffset + b]
-        code += `0x${byteVal.toString(16).padStart(2, '0').toUpperCase()}, `
-      }
-      code += `\n`
-    }
-    code += f === frameCount - 1 ? `  }\n` : `  },\n`
-  }
-
-  code += `};\n\n`
-  code += `void renderCanonicalBitmap(const uint8_t* pgmFrame) {\n`
-  code += `  u8g2.clearBuffer();\n`
-  code += `  for (uint16_t y = 0; y < 64; y++) {\n`
-  code += `    uint16_t rowOffset = y * 16;\n`
-  code += `    for (uint16_t xByte = 0; xByte < 16; xByte++) {\n`
-  code += `      uint8_t b = pgm_read_byte(&pgmFrame[rowOffset + xByte]);\n`
-  code += `      if (b == 0) continue;\n`
-  code += `      uint16_t baseX = xByte * 8;\n`
-  code += `      for (uint8_t bit = 0; bit < 8; bit++) {\n`
-  code += `        if (b & (0x80 >> bit)) {\n`
-  code += `          u8g2.drawPixel(baseX + bit, y);\n`
-  code += `        }\n`
-  code += `      }\n`
-  code += `    }\n`
-  code += `  }\n`
-  code += `  u8g2.sendBuffer();\n`
-  code += `}\n\n`
-  code += `void setup() {\n`
-  code += `  Wire.begin(OLED_SDA, OLED_SCL);\n`
-  code += `  Wire.setClock(400000); // 400kHz fast I2C\n`
-  code += `  u8g2.setI2CAddress(OLED_ADDR << 1);\n`
-  code += `  u8g2.begin();\n`
-  code += `  u8g2.clearBuffer();\n`
-  code += `  u8g2.sendBuffer();\n`
-  code += `}\n\n`
-  code += `void loop() {\n`
-  code += `  for (int i = 0; i < ANIMATION_FRAME_COUNT; i++) {\n`
-  code += `    uint32_t start = millis();\n`
-  code += `    renderCanonicalBitmap(animation_frames[i]);\n`
-  code += `    uint32_t elapsed = millis() - start;\n`
-  code += `    if (elapsed < FRAME_INTERVAL_MS) {\n`
-  code += `      delay(FRAME_INTERVAL_MS - elapsed);\n`
-  code += `    }\n`
-  code += `  }\n`
-  code += `}\n`
-
-  return code
+  const profile = DisplayProfileFactory.getDefaultProfile()
+  const res = ExporterFactory.export('arduino-sketch', reel.frames, profile, {
+    variableName: reel.name,
+    includeDrawFunction: true,
+    fps: reel.targetFps,
+    loop: true,
+    reelName: reel.name,
+    sourceFilename: reel.sourceFilename,
+    algorithmName: reel.settings.ditherAlgorithm,
+  }) as { data: string }
+  return res.data
 }
 
 /**
- * Concatenates all 1024-byte frames into a single continuous raw binary Uint8Array (.bin).
+ * Concatenates all frames into a single continuous raw binary Uint8Array (.bin).
+ * Delegates to ExporterFactory (Spec 007).
  */
 export function generateRawBinaryReel(reel: VideoReel): Uint8Array {
-  const totalBytes = reel.frames.length * 1024
-  const bin = new Uint8Array(totalBytes)
-  for (let i = 0; i < reel.frames.length; i++) {
-    bin.set(reel.frames[i], i * 1024)
-  }
-  return bin
+  const profile = DisplayProfileFactory.getDefaultProfile()
+  const res = ExporterFactory.export('raw-binary', reel.frames, profile, {
+    variableName: reel.name,
+    includeDrawFunction: false,
+    fps: reel.targetFps,
+    loop: true,
+    reelName: reel.name,
+    sourceFilename: reel.sourceFilename,
+  }) as { data: Uint8Array }
+  return res.data
 }
 
 /**
- * Encodes pixel indices into standard GIF LZW sub-blocks.
- */
-function lzwEncode(pixelIndices: Uint8Array): number[] {
-  const minCodeSize = 2
-  const clearCode = 1 << minCodeSize // 4
-  const eoiCode = clearCode + 1 // 5
-
-  let codeSize = minCodeSize + 1 // 3 bits
-  let nextCode = clearCode + 2 // 6
-  const maxCode = (1 << 12) - 1 // 4095
-
-  const dict = new Map<number, number>()
-  const outputBytes: number[] = []
-  let curAccum = 0
-  let curBits = 0
-
-  function writeBits(code: number, size: number) {
-    curAccum |= (code << curBits)
-    curBits += size
-    while (curBits >= 8) {
-      outputBytes.push(curAccum & 0xFF)
-      curAccum >>= 8
-      curBits -= 8
-    }
-  }
-
-  function resetDict() {
-    dict.clear()
-    codeSize = minCodeSize + 1
-    nextCode = clearCode + 2
-  }
-
-  writeBits(clearCode, codeSize)
-  resetDict()
-
-  if (pixelIndices.length > 0) {
-    let prefix = pixelIndices[0]
-    for (let i = 1; i < pixelIndices.length; i++) {
-      const k = pixelIndices[i]
-      const key = (prefix << 8) | k
-      if (dict.has(key)) {
-        prefix = dict.get(key)!
-      } else {
-        writeBits(prefix, codeSize)
-        if (nextCode <= maxCode) {
-          dict.set(key, nextCode)
-          if (nextCode === (1 << codeSize) && codeSize < 12) {
-            codeSize++
-          }
-          nextCode++
-        } else {
-          writeBits(clearCode, codeSize)
-          resetDict()
-        }
-        prefix = k
-      }
-    }
-    writeBits(prefix, codeSize)
-  }
-
-  writeBits(eoiCode, codeSize)
-  if (curBits > 0) {
-    outputBytes.push(curAccum & 0xFF)
-  }
-
-  // Pack into GIF sub-blocks (max 255 bytes each)
-  const result: number[] = [minCodeSize]
-  let offset = 0
-  while (offset < outputBytes.length) {
-    const blockSize = Math.min(255, outputBytes.length - offset)
-    result.push(blockSize)
-    for (let j = 0; j < blockSize; j++) {
-      result.push(outputBytes[offset + j])
-    }
-    offset += blockSize
-  }
-  result.push(0x00) // Block terminator
-  return result
-}
-
-/**
- * Generates an animated 128x64 monochrome GIF89a file with infinite looping (Netscape 2.0 extension).
+ * Generates an animated monochrome GIF89a file.
+ * Delegates to ExporterFactory (Spec 007).
  */
 export function generateAnimatedGif(reel: VideoReel): Uint8Array {
-  const bytes: number[] = []
-  const fps = Math.max(1, reel.targetFps || 15)
-  // Delay in 1/100ths of a second
-  const delayHundredths = Math.max(2, Math.round(100 / fps))
-
-  // 1. Header: GIF89a
-  bytes.push(0x47, 0x49, 0x46, 0x38, 0x39, 0x61)
-
-  // 2. Logical Screen Descriptor (128x64, 2-color global palette)
-  bytes.push(0x80, 0x00) // Width = 128
-  bytes.push(0x40, 0x00) // Height = 64
-  bytes.push(0xF0)       // GCT flag = 1, color res = 7, sort = 0, GCT size = 0 (2^1 = 2 colors)
-  bytes.push(0x00)       // Background color index = 0
-  bytes.push(0x00)       // Pixel aspect ratio = 0
-
-  // 3. Global Color Table (Black #000000, Phosphor White #FFFFFF)
-  bytes.push(
-    0x00, 0x00, 0x00,    // Color 0: Black
-    0xFF, 0xFF, 0xFF     // Color 1: Monochrome White
-  )
-
-  // 4. Netscape 2.0 Loop Extension for infinite playback
-  bytes.push(
-    0x21, 0xFF, 0x0B,
-    0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30, // "NETSCAPE2.0"
-    0x03, 0x01, 0x00, 0x00, // Sub-block: loop count = 0 (infinite)
-    0x00 // Terminator
-  )
-
-  // 5. Encode each frame
-  const pixelBuffer = new Uint8Array(128 * 64)
-  for (const frame of reel.frames) {
-    // Convert 1024-byte row-major bitmap to 8192 pixel indices (0 or 1)
-    for (let row = 0; row < 64; row++) {
-      const rowOffset = row * 16
-      const pixRowOffset = row * 128
-      for (let col = 0; col < 128; col++) {
-        const byteVal = frame[rowOffset + (col >> 3)]
-        pixelBuffer[pixRowOffset + col] = (byteVal & (0x80 >> (col & 7))) !== 0 ? 1 : 0
-      }
-    }
-
-    // Graphic Control Extension (disposal method 1: do not dispose)
-    bytes.push(
-      0x21, 0xF9, 0x04,
-      0x04, // Disposal method: 1
-      delayHundredths & 0xFF,
-      (delayHundredths >> 8) & 0xFF,
-      0x00, // Transparent color index
-      0x00  // Terminator
-    )
-
-    // Image Descriptor
-    bytes.push(
-      0x2C,
-      0x00, 0x00, // Left = 0
-      0x00, 0x00, // Top = 0
-      0x80, 0x00, // Width = 128
-      0x40, 0x00, // Height = 64
-      0x00        // No local color table
-    )
-
-    // LZW compressed image blocks
-    const lzwBlocks = lzwEncode(pixelBuffer)
-    for (let i = 0; i < lzwBlocks.length; i++) {
-      bytes.push(lzwBlocks[i])
-    }
-  }
-
-  // 6. Trailer: 0x3B
-  bytes.push(0x3B)
-
-  return new Uint8Array(bytes)
+  const profile = DisplayProfileFactory.getDefaultProfile()
+  const res = ExporterFactory.export('animated-gif', reel.frames, profile, {
+    variableName: reel.name,
+    includeDrawFunction: false,
+    fps: reel.targetFps,
+    loop: true,
+    reelName: reel.name,
+  }) as { data: Uint8Array }
+  return res.data
 }
 
 /**

@@ -357,7 +357,7 @@ export class VideoDecoderService {
     const fps = Math.max(1, Math.min(60, settings.targetFps || 15))
     const frameInterval = 1.0 / fps
     const rawTotalFrames = Math.max(1, Math.floor(spanDuration * fps))
-    const totalFrames = Math.min(rawTotalFrames, settings.maxFrames || 150)
+    const totalFrames = Math.min(rawTotalFrames, settings.maxFrames || 450)
 
     const frames: ExtractedFrame[] = []
 
@@ -395,7 +395,7 @@ export class VideoDecoderService {
     settings: VideoProcessingSettings,
     onProgress?: (progress: { current: number; total: number; percent: number }) => void
   ): Promise<ExtractedFrame[]> {
-    const maxFrames = settings.maxFrames || 150
+    const maxFrames = settings.maxFrames || 450
     const totalFrames = Math.min(this.gifFrames.length, maxFrames)
     const frames: ExtractedFrame[] = []
 

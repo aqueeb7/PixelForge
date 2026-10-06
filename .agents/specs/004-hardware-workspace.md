@@ -4,7 +4,7 @@
 
 Establish the **Hardware Workspace** and **ESP32 Board Definition System** in PixelForge. This milestone models the physical and electrical layout of ESP32 development boards, provides an interactive visual pinout and wiring inspector, and enables configuring attached peripherals (starting with the 128×64 I2C OLED display). 
 
-This configuration forms the authoritative hardware schema (`hardware.json`) used by **Spec 005 (Active Hardware Probing & I²C Scan)** and **Spec 006 (Hardware Simulator)**.
+This configuration forms the authoritative hardware schema (`hardware.json`) used by **Spec 005 (Active Hardware Probing & I²C Scan)**, **Spec 008 (Component & Wiring Graph)**, and **Spec 010 (Virtual ESP32 Simulator)**.
 
 ---
 

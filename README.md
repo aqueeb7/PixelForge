@@ -164,9 +164,12 @@ npm run tauri dev
 | **Spec 003** | 128×64 pixel canvas, drawing tools, undo/redo, 1:1 hardware mirror | **Completed** |
 | **Spec 004** | Board definitions (30p/38p), pin inspector, strapping safety rules | **Completed** |
 | **Spec 005** | Unified Hardware Studio, 3-way demux, flasher, silicon treemap heatmap | **Completed** |
-| **Spec 006** | Video to 128×64 OLED converter, multi-algorithm dithering engine | **Current** |
-| **Spec 007** | Animation reel storage, LittleFS / SPIFFS flasher, autonomous player | **Upcoming** |
-| **Spec 008** | Canonical hardware project schema, wiring graph, virtual ESP32 simulator | **Upcoming** |
+| **Spec 006** | Video to 128×64 OLED converter, multi-algorithm dithering engine | **Completed** |
+| **Spec 007** | [Scalable Architecture, Directory Structure & Factory Patterns](file:///.agents/specs/007-scalable-architecture-patterns.md) | **Active Milestone** |
+| **Spec 008** | [Component & Wiring Graph (Breadboard, pin connections, modules)](file:///.agents/specs/008-component-wiring-graph.md) | **Upcoming** |
+| **Spec 009** | [Hardware Workspace / Multimeter & Live Telemetry Diagnostics](file:///.agents/specs/009-hardware-workspace-multimeter.md) | **Upcoming** |
+| **Spec 010** | [Virtual ESP32 Simulator (Xtensa emulation, simulated I2C OLED)](file:///.agents/specs/010-virtual-esp32-simulator.md) | **Upcoming** |
+| **Spec 011** | [Firmware & Autonomous Simulation Integration (LittleFS Reel Flash)](file:///.agents/specs/011-firmware-simulation-integration.md) | **Upcoming** |
 
 ---
 

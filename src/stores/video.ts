@@ -55,7 +55,7 @@ export const useVideoStore = defineStore('video', () => {
     temporalSmoothing: false,
     trimStart: 0,
     trimEnd: 0,
-    maxFrames: 150,
+    maxFrames: 450,
   })
 
   // Timeline & Playback State
@@ -495,6 +495,7 @@ export const useVideoStore = defineStore('video', () => {
       settings.value.panY,
       settings.value.rotation,
       settings.value.targetFps,
+      settings.value.maxFrames,
     ],
     () => {
       // 1. Immediately update current preview frame

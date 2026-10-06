@@ -64,6 +64,32 @@ function handleToggleConnect() {
       </div>
     </div>
 
+    <!-- Center: Live Hardware Process / Transaction Monitor -->
+    <div class="status-group status-center">
+      <div
+        v-if="deviceStore.activeTransaction"
+        class="tx-pill"
+        :class="`tx--${deviceStore.activeTransaction.step}`"
+        :title="deviceStore.activeTransaction.detail"
+      >
+        <span class="tx-pulse-dot" />
+        <span class="tx-title">{{ deviceStore.activeTransaction.title }}</span>
+        <span class="tx-sep">·</span>
+        <span class="tx-detail">{{ deviceStore.activeTransaction.detail }}</span>
+        <span class="tx-timer">{{ deviceStore.activeTransaction.elapsedMs }}ms</span>
+      </div>
+      <div
+        v-else-if="deviceStore.lastTransaction && deviceStore.lastTransaction.step === 'completed'"
+        class="tx-pill tx--idle-success"
+        :title="deviceStore.lastTransaction.detail"
+      >
+        <span class="text-emerald-400">✓</span>
+        <span class="text-slate-300 font-medium">{{ deviceStore.lastTransaction.title }}</span>
+        <span class="tx-sep">·</span>
+        <span class="text-slate-400">{{ deviceStore.lastTransaction.elapsedMs }}ms</span>
+      </div>
+    </div>
+
     <!-- Right: Universal Hardware Control Band -->
     <div class="status-group status-right">
       <!-- Port Selector -->
@@ -118,8 +144,11 @@ function handleToggleConnect() {
         :disabled="!deviceStore.selectedPort || deviceStore.status === 'connecting' || deviceStore.isDisconnecting"
         @click="handleToggleConnect"
       >
-        <span v-if="deviceStore.status === 'connecting'" class="inline-flex items-center gap-1">
+        <span v-if="deviceStore.connectionState === 'Connecting'" class="inline-flex items-center gap-1">
           <span class="status-spinner" /> Connecting…
+        </span>
+        <span v-else-if="deviceStore.connectionState === 'Handshaking'" class="inline-flex items-center gap-1">
+          <span class="status-spinner" /> Handshaking…
         </span>
         <span v-else-if="deviceStore.isDisconnecting" class="inline-flex items-center gap-1">
           <span class="status-spinner" /> Disconnecting…
@@ -186,6 +215,123 @@ function handleToggleConnect() {
 
 .status-left {
   min-width: 0;
+}
+
+.status-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.tx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.68rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.7);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: fadeIn 0.2s ease;
+}
+
+.tx-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tx-sep {
+  opacity: 0.4;
+}
+
+.tx-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.tx-timer {
+  font-size: 0.64rem;
+  opacity: 0.85;
+}
+
+.tx-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: pulse-glow 1s infinite;
+}
+
+.tx--preparing {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(8, 47, 73, 0.8);
+  color: #38bdf8;
+}
+.tx--preparing .tx-pulse-dot {
+  background-color: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+
+.tx--transmitting {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(30, 58, 138, 0.8);
+  color: #93c5fd;
+}
+.tx--transmitting .tx-pulse-dot {
+  background-color: #60a5fa;
+  box-shadow: 0 0 8px #60a5fa;
+}
+
+.tx--awaiting_ack {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(120, 53, 15, 0.8);
+  color: #fde68a;
+}
+.tx--awaiting_ack .tx-pulse-dot {
+  background-color: #fbbf24;
+  box-shadow: 0 0 8px #fbbf24;
+}
+
+.tx--completed {
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(6, 78, 59, 0.8);
+  color: #6ee7b7;
+}
+.tx--completed .tx-pulse-dot {
+  background-color: #34d399;
+  box-shadow: 0 0 6px #34d399;
+}
+
+.tx--idle-success {
+  border-color: rgba(52, 211, 153, 0.2);
+  background: rgba(6, 78, 59, 0.3);
+  color: #cbd5e1;
+}
+
+.tx--failed {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(136, 19, 55, 0.8);
+  color: #fca5a5;
+}
+.tx--failed .tx-pulse-dot {
+  background-color: #f87171;
+  box-shadow: 0 0 8px #f87171;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.2); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .status-item {

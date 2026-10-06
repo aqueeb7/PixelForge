@@ -259,11 +259,34 @@ onUnmounted(() => {
           :disabled="deviceStore.status !== 'connected' || isSending"
           @click="pushToOled"
         >
-          <span v-if="isSending">⚡ Sending…</span>
-          <span v-else-if="sendFeedback === 'success'">✓ Sent</span>
+          <span v-if="deviceStore.activeTransaction && deviceStore.activeTransaction.type === 'send_frame'">
+            <span v-if="deviceStore.activeTransaction.step === 'preparing'">⚙ Packaging…</span>
+            <span v-else-if="deviceStore.activeTransaction.step === 'transmitting'">📡 Streaming…</span>
+            <span v-else-if="deviceStore.activeTransaction.step === 'awaiting_ack'">⏱ Awaiting ACK…</span>
+            <span v-else>⚡ Sending…</span>
+          </span>
+          <span v-else-if="isSending">⚡ Sending…</span>
+          <span v-else-if="sendFeedback === 'success'">✓ Sent ({{ deviceStore.lastTransaction?.elapsedMs || 0 }}ms)</span>
           <span v-else-if="sendFeedback === 'error'">✕ Error</span>
           <span v-else>🚀 Send to Display</span>
+
+          <!-- Inline progress bar on button -->
+          <div
+            v-if="deviceStore.activeTransaction && deviceStore.activeTransaction.type === 'send_frame'"
+            class="btn-progress-line"
+            :style="{ width: `${deviceStore.activeTransaction.progress}%` }"
+          />
         </button>
+
+        <!-- Dynamic Process Detail Pill in Header -->
+        <div
+          v-if="deviceStore.activeTransaction && deviceStore.activeTransaction.type === 'send_frame'"
+          class="draw-tx-pill font-mono"
+        >
+          <span class="animate-pulse text-cyan-400">⚡</span>
+          <span class="truncate max-w-[220px]">{{ deviceStore.activeTransaction.detail }}</span>
+          <span class="text-cyan-300 font-semibold">{{ deviceStore.activeTransaction.elapsedMs }}ms</span>
+        </div>
 
         <!-- Connection Status Pill -->
         <router-link to="/devices" class="device-pill" :class="'device-pill--' + deviceStore.status">
@@ -516,6 +539,8 @@ onUnmounted(() => {
 }
 
 .btn--send {
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(135deg, #7c6fff, #6366f1);
   color: white;
   border: none;
@@ -526,6 +551,30 @@ onUnmounted(() => {
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
   transition: all 0.15s ease;
+}
+
+.btn-progress-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  transition: width 0.15s ease;
+}
+
+.draw-tx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  color: #e2e8f0;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.15);
+  animation: fadeIn 0.2s ease;
 }
 
 .btn--send:hover:not(:disabled) {

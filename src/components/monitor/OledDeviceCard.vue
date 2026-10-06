@@ -194,13 +194,24 @@ onMounted(() => {
     </div>
 
     <!-- Embedded Physical OLED Glass Substrate -->
-    <div class="oled-glass-bezel">
+    <div class="oled-glass-bezel relative">
       <canvas
         ref="canvasRef"
         width="128"
         height="64"
         class="oled-screen"
       />
+
+      <!-- Live Hardware Activity Overlay -->
+      <div
+        v-if="deviceStore.activeTransaction"
+        class="oled-sync-overlay font-mono"
+      >
+        <span class="animate-pulse text-cyan-400">⚡</span>
+        <span class="text-[9px] uppercase tracking-wider text-cyan-200 truncate">
+          {{ deviceStore.activeTransaction.step }}: {{ deviceStore.activeTransaction.elapsedMs }}ms
+        </span>
+      </div>
     </div>
 
     <!-- Bottom Laser Markings & Micro-Controls -->
@@ -216,18 +227,25 @@ onMounted(() => {
       <div class="device-actions">
         <button
           class="btn-pcb-action"
-          :disabled="!isConnected"
+          :disabled="!isConnected || deviceStore.activeTransaction?.type === 'clear_display'"
           title="Clear screen buffer on device"
           @click="deviceStore.clear"
         >
-          ⌧ Clear
+          <span v-if="deviceStore.activeTransaction?.type === 'clear_display'" class="animate-pulse text-cyan-300">
+            ⌧ Clearing…
+          </span>
+          <span v-else>⌧ Clear</span>
         </button>
         <button
           class="btn-pcb-action btn-accent"
+          :disabled="deviceStore.activeTransaction?.type === 'test_pattern'"
           title="Send test grid pattern to OLED"
           @click="deviceStore.sendTestPattern"
         >
-          ⟳ Test Pattern
+          <span v-if="deviceStore.activeTransaction?.type === 'test_pattern'" class="animate-pulse text-cyan-300">
+            ⟳ Sending…
+          </span>
+          <span v-else>⟳ Test Pattern</span>
         </button>
       </div>
     </div>
@@ -423,6 +441,7 @@ onMounted(() => {
 
 /* Glass Screen Bezel */
 .oled-glass-bezel {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -431,6 +450,22 @@ onMounted(() => {
   border-radius: 4px;
   padding: 6px 4px;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+.oled-sync-overlay {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(3, 7, 18, 0.88);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+  z-index: 10;
+  pointer-events: none;
 }
 
 .oled-screen {

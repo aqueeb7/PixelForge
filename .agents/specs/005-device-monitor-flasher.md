@@ -55,12 +55,24 @@ Spec 006: Video to 128×64 OLED Converter & Multi-Algorithm Dithering Engine (Cu
           C/C++ PROGMEM and live stream delivery
        │
        ▼
-Spec 007: Animation Reel Storage, LittleFS / SPIFFS Flasher & ESP32 Standalone Player
-          Persistent portable project reels, on-device frame storage, autonomous OLED playback
+Spec 007: Scalable Architecture, Directory Structure & Factory Design Patterns
+          Architecture hardening, display decoupling, FSM state machines, transport adapter
        │
        ▼
-Spec 008: Canonical Hardware Project Schema, Interactive Wiring Graph & Virtual Simulator
-          hardware.json persistence, interactive routing canvas, in-memory ESP32 emulator
+Spec 008: Component & Wiring Graph (Visual Breadboard & Netlist)
+          Interactive routing canvas, electrical linter, strapping pin guards, pinout.h generator
+       │
+       ▼
+Spec 009: Hardware Workspace: Virtual Multimeter & Live Logic Analyzer
+          Virtual DMM (DC Volts, audio continuity), 4-ch logic analyzer, active 0x08-0x77 I2C scanner
+       │
+       ▼
+Spec 010: Virtual ESP32 Simulator (Silicon Emulation & Virtual OLED)
+          Virtual Xtensa core, I2C bus state machine, SSD1306 GDDRAM controller, SimulatorTransport
+       │
+       ▼
+Spec 011: Firmware & Autonomous Appliance Mode (LittleFS Reel Flash)
+          Persistent portable project reels, LittleFS partition, autonomous PC-free loop playback
 ```
 
 ---
@@ -177,7 +189,7 @@ interface DeviceTelemetry {
 The ESP32 firmware supplies the initial 24-byte binary serialization (`0x85`), while the desktop domain remains decoupled from the specific transport format.
 
 ### 6. Simulator Transport Decoupling (`DeviceTransport` Trait)
-**Critical for Spec 008**: The desktop frontend and diagnostics engine must communicate with devices through a common transport abstraction:
+**Critical for Spec 010**: The desktop frontend and diagnostics engine must communicate with devices through a common transport abstraction:
 ```rust
 #[async_trait]
 pub trait DeviceTransport: Send + Sync {
@@ -188,7 +200,7 @@ pub trait DeviceTransport: Send + Sync {
 }
 ```
 - Physical serial ports implement `DeviceTransport` via `serialport-rs`.
-- The future **Virtual ESP32 Simulator** (Spec 008) will implement `DeviceTransport` via an in-memory channel or IPC, allowing the identical Serial Monitor, Packet Inspector, and Telemetry Gauges to monitor simulated hardware without a physical USB cable!
+- The future **Virtual ESP32 Simulator** (Spec 010) will implement `DeviceTransport` via an in-memory channel or IPC, allowing the identical Serial Monitor, Packet Inspector, and Telemetry Gauges to monitor simulated hardware without a physical USB cable!
 
 ```text
 Draw Canvas
@@ -351,7 +363,7 @@ The diagnostics workspace is structured with the same fixed-viewport, zero-outer
    - Terminal cleanly prints ESP-IDF ASCII startup logs (`rst:0x1...`).
    - Binary telemetry packets (`0x85`) update the UI gauges without polluting the ASCII terminal stream.
 3. **Transport Abstraction**:
-   - The device management core implements `DeviceTransport`, ensuring zero serial port dependencies when Spec 008 introduces simulated devices.
+   - The device management core implements `DeviceTransport`, ensuring zero serial port dependencies when Spec 010 introduces simulated devices.
 4. **Flasher Isolation**:
    - Flashing logic resides strictly behind `DeviceFlasher`.
    - Successfully enters download mode via DTR/RTS auto-reset and completes an application flash at 460800 baud with progress updates.

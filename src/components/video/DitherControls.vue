@@ -302,6 +302,84 @@ function resetDefaults() {
           </label>
         </div>
       </section>
+
+      <!-- Section 3: LittleFS Flash Storage & Reel Duration HUD -->
+      <section class="control-section flash-hud-section">
+        <div class="section-label-row">
+          <span class="section-label font-mono">3. FLASH STORAGE & REEL DURATION</span>
+          <span class="flash-badge font-mono">⚡ LittleFS 1.5 MB</span>
+        </div>
+
+        <!-- Real-Time Duration & Capacity Metric Cards -->
+        <div class="hud-metric-grid">
+          <div class="hud-card">
+            <span class="hud-card-label font-mono">Output Duration</span>
+            <span class="hud-card-value font-mono highlight-cyan">
+              {{ (videoStore.totalFrames / videoStore.settings.targetFps).toFixed(1) }}s
+            </span>
+            <span class="hud-card-sub font-mono">
+              @ {{ videoStore.settings.targetFps }} FPS loop
+            </span>
+          </div>
+
+          <div class="hud-card">
+            <span class="hud-card-label font-mono">Extracted Frames</span>
+            <span class="hud-card-value font-mono highlight-purple">
+              {{ videoStore.totalFrames }}
+            </span>
+            <span class="hud-card-sub font-mono">
+              {{ videoStore.totalFrames }} KB Flash
+            </span>
+          </div>
+        </div>
+
+        <!-- Flash Storage Capacity Meter -->
+        <div class="flash-capacity-card">
+          <div class="capacity-header font-mono">
+            <span>Onboard Flash Used:</span>
+            <span class="capacity-val font-mono">
+              {{ videoStore.totalFrames }} KB / 1,500 KB ({{ Math.min(100, Math.round((videoStore.totalFrames / 1500) * 100)) }}%)
+            </span>
+          </div>
+          <div class="capacity-bar-track">
+            <div
+              class="capacity-bar-fill"
+              :style="{ width: `${Math.min(100, (videoStore.totalFrames / 1500) * 100)}%` }"
+            />
+          </div>
+          <p class="capacity-desc font-mono">
+            ✓ Survives power disconnect. Streamed autonomously via LittleFS.
+          </p>
+        </div>
+
+        <!-- Max Frame Limit Selector / Presets -->
+        <div class="max-frames-control">
+          <div class="slider-header font-mono">
+            <span>Max Frames Ceiling</span>
+            <span class="val-highlight font-mono">{{ videoStore.settings.maxFrames }} frames</span>
+          </div>
+          <div class="frame-preset-buttons font-mono">
+            <button
+              v-for="preset in [150, 300, 450, 600, 1000, 1500]"
+              :key="preset"
+              class="btn-frame-preset"
+              :class="{ active: videoStore.settings.maxFrames === preset }"
+              :title="`Max ${preset} frames: ${(preset / videoStore.settings.targetFps).toFixed(0)}s at ${videoStore.settings.targetFps} FPS (${preset} KB)`"
+              @click="videoStore.settings.maxFrames = preset"
+            >
+              {{ preset }}
+            </button>
+          </div>
+          <input
+            v-model.number="videoStore.settings.maxFrames"
+            type="range"
+            min="30"
+            max="1500"
+            step="10"
+            class="slider-input"
+          />
+        </div>
+      </section>
     </div>
   </aside>
 </template>
@@ -604,5 +682,141 @@ input:checked + .switch-slider {
 
 input:checked + .switch-slider:before {
   transform: translateX(16px);
+}
+
+/* Flash Storage & Reel Duration HUD Section */
+.flash-hud-section {
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 8px;
+  padding: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.flash-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38BDF8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+}
+
+.hud-metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin: 0.6rem 0;
+}
+
+.hud-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+}
+
+.hud-card-label {
+  font-size: 0.6rem;
+  color: #64748B;
+  text-transform: uppercase;
+}
+
+.hud-card-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0.15rem 0;
+}
+
+.highlight-cyan {
+  color: #38BDF8;
+}
+
+.highlight-purple {
+  color: #C084FC;
+}
+
+.hud-card-sub {
+  font-size: 0.62rem;
+  color: #94A3B8;
+}
+
+.flash-capacity-card {
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+}
+
+.capacity-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.64rem;
+  color: #94A3B8;
+  margin-bottom: 0.3rem;
+}
+
+.capacity-val {
+  color: #34D399;
+  font-weight: 600;
+}
+
+.capacity-bar-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+
+.capacity-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38BDF8, #34D399);
+  transition: width 0.25s ease;
+}
+
+.capacity-desc {
+  font-size: 0.6rem;
+  color: #64748B;
+  margin: 0;
+}
+
+.max-frames-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.frame-preset-buttons {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.btn-frame-preset {
+  font-size: 0.65rem;
+  padding: 0.2rem 0.45rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94A3B8;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-frame-preset:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #F8FAFC;
+}
+
+.btn-frame-preset.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38BDF8;
+  color: #38BDF8;
+  font-weight: 700;
 }
 </style>

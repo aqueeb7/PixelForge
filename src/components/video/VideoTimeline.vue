@@ -142,6 +142,10 @@ onUnmounted(() => {
         <div class="frame-badge font-mono">
           Frame {{ videoStore.currentFrameIndex + 1 }} / {{ videoStore.totalFrames }}
         </div>
+
+        <div class="output-duration-badge font-mono" title="Total animation loop duration on OLED display: Frames / FPS">
+          ⏱ Output: {{ (videoStore.totalFrames / videoStore.settings.targetFps).toFixed(1) }}s
+        </div>
       </div>
 
       <!-- Center: FPS Presets -->
@@ -149,11 +153,11 @@ onUnmounted(() => {
         <span class="fps-label font-mono">Target FPS:</span>
         <div class="fps-presets font-mono">
           <button
-            v-for="fps in [10, 15, 20, 30]"
+            v-for="fps in [5, 10, 15, 20, 30]"
             :key="fps"
             class="btn-fps"
             :class="{ active: videoStore.settings.targetFps === fps }"
-            :title="`${fps} FPS ${fps === 10 ? '(Best for standard I2C)' : fps === 30 ? '(SPI high-speed)' : ''}`"
+            :title="`${fps} FPS ${fps === 5 ? '(Cinematic / Max video duration)' : fps === 10 ? '(Best for standard I2C)' : fps === 30 ? '(SPI high-speed)' : ''}`"
             @click="videoStore.settings.targetFps = fps"
           >
             {{ fps }}
@@ -336,6 +340,16 @@ onUnmounted(() => {
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
   border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.output-duration-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #10B981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
 /* FPS Presets */

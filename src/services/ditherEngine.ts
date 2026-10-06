@@ -4,30 +4,11 @@
  */
 
 import type { DitherAlgorithm, VideoProcessingSettings } from '../types/video'
+import { DitherEngineFactory } from '../factories/DitherEngineFactory'
 
 export const CANVAS_WIDTH = 128
 export const CANVAS_HEIGHT = 64
 export const CANONICAL_BYTE_LENGTH = 1024 // 128 * 64 / 8
-
-// 4x4 Bayer Matrix
-const BAYER_4X4 = [
-  [0, 8, 2, 10],
-  [12, 4, 14, 6],
-  [3, 11, 1, 9],
-  [15, 7, 13, 5],
-]
-
-// 8x8 Bayer Matrix
-const BAYER_8X8 = [
-  [0, 32, 8, 40, 2, 34, 10, 42],
-  [48, 16, 56, 24, 50, 18, 58, 26],
-  [12, 44, 4, 36, 14, 46, 6, 38],
-  [60, 28, 52, 20, 62, 30, 54, 22],
-  [3, 35, 11, 43, 1, 33, 9, 41],
-  [51, 19, 59, 27, 49, 17, 57, 25],
-  [15, 47, 7, 39, 13, 45, 5, 37],
-  [63, 31, 55, 23, 61, 29, 53, 21],
-]
 
 /**
  * Pre-processes an RGBA ImageData (128x64) into normalized, contrast-adjusted grayscale Float32Array.
@@ -158,6 +139,7 @@ export function computeOtsuThreshold(gray: Float32Array): number {
 /**
  * Applies the selected dithering algorithm to the grayscale buffer
  * and returns a binary Uint8Array(128x64) with values 0 (black) or 1 (white).
+ * Delegates to the DitherEngineFactory Strategy Pattern (Spec 007).
  */
 export function dither(
   gray: Float32Array,
@@ -165,116 +147,8 @@ export function dither(
   width = CANVAS_WIDTH,
   height = CANVAS_HEIGHT
 ): Uint8Array {
-  const binary = new Uint8Array(width * height)
-  // Create a mutable copy of grayscale values for error diffusion
-  const buffer = new Float32Array(gray)
-
-  switch (algorithm) {
-    case 'atkinson': {
-      // Bill Atkinson 1984 algorithm: distributes 6/8 (75%) of error, leaves 25% for high-contrast punch
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const idx = y * width + x
-          const oldVal = buffer[idx]
-          const newVal = oldVal >= 128 ? 255 : 0
-          binary[idx] = newVal === 255 ? 1 : 0
-          const error = (oldVal - newVal) / 8
-
-          if (x + 1 < width) buffer[idx + 1] += error
-          if (x + 2 < width) buffer[idx + 2] += error
-          if (y + 1 < height) {
-            if (x - 1 >= 0) buffer[(y + 1) * width + (x - 1)] += error
-            buffer[(y + 1) * width + x] += error
-            if (x + 1 < width) buffer[(y + 1) * width + (x + 1)] += error
-          }
-          if (y + 2 < height) {
-            buffer[(y + 2) * width + x] += error
-          }
-        }
-      }
-      break
-    }
-
-    case 'floyd-steinberg': {
-      // Classic 100% error diffusion: 7/16, 3/16, 5/16, 1/16
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const idx = y * width + x
-          const oldVal = buffer[idx]
-          const newVal = oldVal >= 128 ? 255 : 0
-          binary[idx] = newVal === 255 ? 1 : 0
-          const error = oldVal - newVal
-
-          if (x + 1 < width) buffer[idx + 1] += (error * 7) / 16
-          if (y + 1 < height) {
-            if (x - 1 >= 0) buffer[(y + 1) * width + (x - 1)] += (error * 3) / 16
-            buffer[(y + 1) * width + x] += (error * 5) / 16
-            if (x + 1 < width) buffer[(y + 1) * width + (x + 1)] += (error * 1) / 16
-          }
-        }
-      }
-      break
-    }
-
-    case 'bayer4': {
-      // 4x4 Ordered Bayer Matrix (position-independent, zero temporal pixel swimming)
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const idx = y * width + x
-          const threshold = ((BAYER_4X4[y % 4][x % 4] + 0.5) / 16) * 255
-          binary[idx] = buffer[idx] >= threshold ? 1 : 0
-        }
-      }
-      break
-    }
-
-    case 'bayer8': {
-      // 8x8 Ordered Bayer Matrix
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const idx = y * width + x
-          const threshold = ((BAYER_8X8[y % 8][x % 8] + 0.5) / 64) * 255
-          binary[idx] = buffer[idx] >= threshold ? 1 : 0
-        }
-      }
-      break
-    }
-
-    case 'burkes': {
-      // Burkes 7-neighbor diffusion (error / 32)
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const idx = y * width + x
-          const oldVal = buffer[idx]
-          const newVal = oldVal >= 128 ? 255 : 0
-          binary[idx] = newVal === 255 ? 1 : 0
-          const error = oldVal - newVal
-
-          if (x + 1 < width) buffer[idx + 1] += (error * 8) / 32
-          if (x + 2 < width) buffer[idx + 2] += (error * 4) / 32
-          if (y + 1 < height) {
-            if (x - 2 >= 0) buffer[(y + 1) * width + (x - 2)] += (error * 2) / 32
-            if (x - 1 >= 0) buffer[(y + 1) * width + (x - 1)] += (error * 4) / 32
-            buffer[(y + 1) * width + x] += (error * 8) / 32
-            if (x + 1 < width) buffer[(y + 1) * width + (x + 1)] += (error * 4) / 32
-            if (x + 2 < width) buffer[(y + 1) * width + (x + 2)] += (error * 2) / 32
-          }
-        }
-      }
-      break
-    }
-
-    case 'threshold': {
-      // Adaptive Otsu Threshold (pure stark silhouette)
-      const otsuThresh = computeOtsuThreshold(buffer)
-      for (let i = 0; i < width * height; i++) {
-        binary[i] = buffer[i] >= otsuThresh ? 1 : 0
-      }
-      break
-    }
-  }
-
-  return binary
+  const strategy = DitherEngineFactory.getStrategy(algorithm)
+  return strategy.process(gray, { width, height })
 }
 
 /**
