@@ -1,11 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useDeviceStore } from '../stores/device'
+import ThinkingOrb, { type OrbState } from './common/ThinkingOrb.vue'
 
 const deviceStore = useDeviceStore()
 
 const currentTx = computed(() => deviceStore.activeTransaction)
 const isVisible = computed(() => Boolean(currentTx.value))
+
+const orbState = computed<OrbState>(() => {
+  if (!currentTx.value) return 'working'
+  switch (currentTx.value.step) {
+    case 'preparing':
+      return 'searching'
+    case 'transmitting':
+      return 'connecting'
+    case 'awaiting_ack':
+      return 'listening'
+    default:
+      return 'working'
+  }
+})
 
 const stepIndex = computed(() => {
   if (!currentTx.value) return 0
@@ -58,7 +73,7 @@ const badgeColor = computed(() => {
           <div class="hud-title-group">
             <span v-if="currentTx.step === 'completed'" class="hud-icon text-emerald-400">✓</span>
             <span v-else-if="currentTx.step === 'failed'" class="hud-icon text-rose-400">✕</span>
-            <span v-else class="hud-icon animate-spin text-cyan-400">⟳</span>
+            <ThinkingOrb v-else :state="orbState" :size="20" :speed="1.2" class="hud-orb" />
 
             <span class="hud-title">{{ currentTx.title }}</span>
           </div>

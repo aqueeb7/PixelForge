@@ -2,6 +2,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { useVideoStore } from '../../stores/video'
 import { CANVAS_WIDTH, CANVAS_HEIGHT, unpackCanonicalBitmap } from '../../services/ditherEngine'
+import ThinkingOrb from '../common/ThinkingOrb.vue'
 
 const videoStore = useVideoStore()
 
@@ -125,8 +126,9 @@ function onFileSelect(e: Event) {
         <span v-if="videoStore.isVideoLoaded" class="badge-fps">
           {{ videoStore.settings.targetFps }} FPS
         </span>
-        <span v-if="videoStore.isExtracting" class="badge-extracting animate-pulse">
-          ⚡ Extracting ({{ videoStore.extractionProgress.percent }}%)
+        <span v-if="videoStore.isExtracting" class="badge-extracting inline-flex items-center gap-1.5">
+          <ThinkingOrb state="weaving" :size="20" :speed="1.3" />
+          <span>Extracting ({{ videoStore.extractionProgress.percent }}%)</span>
         </span>
       </div>
 

@@ -2,9 +2,26 @@
 import { computed } from 'vue'
 import { useDeviceStore } from '../stores/device'
 import { getPlatformMode } from '../services/platform'
+import ThinkingOrb, { type OrbState } from './common/ThinkingOrb.vue'
 
 const deviceStore = useDeviceStore()
 const platformMode = computed(() => getPlatformMode())
+
+const activeOrbState = computed<OrbState>(() => {
+  if (deviceStore.status === 'connecting') return 'searching'
+  const tx = deviceStore.activeTransaction
+  if (!tx) return 'working'
+  switch (tx.step) {
+    case 'preparing':
+      return 'searching'
+    case 'transmitting':
+      return 'connecting'
+    case 'awaiting_ack':
+      return 'listening'
+    default:
+      return 'working'
+  }
+})
 
 const statusLabel = computed(() => {
   switch (deviceStore.status) {
@@ -72,7 +89,7 @@ function handleToggleConnect() {
         :class="`tx--${deviceStore.activeTransaction.step}`"
         :title="deviceStore.activeTransaction.detail"
       >
-        <span class="tx-pulse-dot" />
+        <ThinkingOrb :state="activeOrbState" :size="20" class="mr-1.5" />
         <span class="tx-title">{{ deviceStore.activeTransaction.title }}</span>
         <span class="tx-sep">·</span>
         <span class="tx-detail">{{ deviceStore.activeTransaction.detail }}</span>

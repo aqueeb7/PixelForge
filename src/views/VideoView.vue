@@ -6,6 +6,7 @@ import { flashPixelforgeFirmware } from '../services/platform'
 import VideoPreviewDisplay from '../components/video/VideoPreviewDisplay.vue'
 import DitherControls from '../components/video/DitherControls.vue'
 import VideoTimeline from '../components/video/VideoTimeline.vue'
+import ThinkingOrb from '../components/common/ThinkingOrb.vue'
 
 import { useDeviceStore } from '../stores/device'
 
@@ -192,11 +193,13 @@ function handleDownloadFirmware() {
           title="Upload animation reel directly to ESP32 RAM for infinite repeat at 30 FPS with zero USB bottleneck"
           @click="handleUploadReel"
         >
-          <span v-if="videoStore.isUploadingReel" class="animate-pulse inline-flex items-center gap-1.5">
-            <span class="btn-spinner" /> ⚡ Uploading Reel…
+          <span v-if="videoStore.isUploadingReel" class="inline-flex items-center gap-1.5">
+            <ThinkingOrb state="weaving" :size="20" :speed="1.3" />
+            <span>Uploading Reel…</span>
           </span>
-          <span v-else-if="videoStore.isStoppingReel" class="animate-pulse inline-flex items-center gap-1.5">
-            <span class="btn-spinner" /> ⏹ Stopping Loop…
+          <span v-else-if="videoStore.isStoppingReel" class="inline-flex items-center gap-1.5">
+            <ThinkingOrb state="breathing" :size="20" :speed="1.2" />
+            <span>Stopping Loop…</span>
           </span>
           <span v-else-if="videoStore.isReelPlayingOnDevice">
             ⏹ Stop OLED Loop
@@ -214,8 +217,9 @@ function handleDownloadFirmware() {
           title="1-Click flash bundled PixelForge firmware to your ESP32 via USB. Zero Arduino IDE required!"
           @click="handleFlashFirmware"
         >
-          <span v-if="isFlashingFirmware" class="animate-pulse">
-            ⚡ Flashing ({{ flashProgressPercent }}%)
+          <span v-if="isFlashingFirmware" class="inline-flex items-center gap-1.5">
+            <ThinkingOrb state="connecting" :size="20" :speed="1.3" />
+            <span>Flashing ({{ flashProgressPercent }}%)</span>
           </span>
           <span v-else>
             ⚡ 1-Click Flash ESP32
