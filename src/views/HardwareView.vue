@@ -3,24 +3,18 @@ import { ref, onMounted } from 'vue'
 import { useHardwareStore } from '../stores/hardware'
 import { useDeviceStore } from '../stores/device'
 
-// Hardware Rack & Board Components
-import Esp32BoardView from '../components/hardware/Esp32BoardView.vue'
-import PinInspector from '../components/hardware/PinInspector.vue'
-import PeripheralManager from '../components/hardware/PeripheralManager.vue'
-import OledDeviceCard from '../components/monitor/OledDeviceCard.vue'
-import DeviceDossier from '../components/monitor/DeviceDossier.vue'
-
 // Diagnostics, Console & Tools Components
 import SiliconTreemap from '../components/monitor/SiliconTreemap.vue'
 import SerialTerminal from '../components/monitor/SerialTerminal.vue'
 import PacketInspector from '../components/monitor/PacketInspector.vue'
 import FirmwareFlasher from '../components/monitor/FirmwareFlasher.vue'
+import WiringStudio from '../components/hardware/graph/WiringStudio.vue'
 
 const hardwareStore = useHardwareStore()
 const deviceStore = useDeviceStore()
 
-export type StudioTab = 'rack' | 'telemetry' | 'console' | 'flasher'
-const activeTab = ref<StudioTab>('rack')
+export type StudioTab = 'hardware' | 'rack' | 'wiring' | 'telemetry' | 'console' | 'flasher'
+const activeTab = ref<StudioTab>('hardware')
 
 onMounted(async () => {
   await hardwareStore.init()
@@ -155,11 +149,11 @@ async function handleSave() {
         <div class="studio-tabs">
           <button
             class="tab-btn"
-            :class="{ 'tab-btn--active': activeTab === 'rack' }"
-            title="Rack & Wiring: ESP32 board and attached peripheral components"
-            @click="activeTab = 'rack'"
+            :class="{ 'tab-btn--active': activeTab === 'hardware' || activeTab === 'rack' || activeTab === 'wiring' }"
+            title="Hardware Studio: Interactive breadboard, wiring graph, pinout matrix & hardware dossier"
+            @click="activeTab = 'hardware'"
           >
-            ⚡ Rack
+            ⚡ Hardware
           </button>
           <button
             class="tab-btn"
@@ -222,35 +216,17 @@ async function handleSave() {
 
     <!-- Main Studio Workspace Area (100% height, zero window scrollbar) -->
     <main class="studio-workspace">
-      <!-- MODE 1: Rack & Wiring (Board + Components Rack + Net Linking) -->
-      <div v-if="activeTab === 'rack'" class="tab-pane rack-grid">
-        <!-- Left Column: Interactive Visual MCU Board -->
-        <div class="board-column">
-          <Esp32BoardView />
-        </div>
-
-        <!-- Right Column: Hardware Dossier, Peripherals Rack & Pin Dossier -->
-        <aside class="rack-sidebar">
-          <!-- Active Pin Dossier (appears at top when a pin is clicked on the board) -->
-          <PinInspector v-if="hardwareStore.selectedPin" />
-
-          <!-- Device #00: Silicon & Hardware Dossier -->
-          <DeviceDossier />
-
-          <!-- Peripheral #01: OLED Display Physical Component Chassis -->
-          <OledDeviceCard />
-
-          <!-- Attached Peripherals & Bus Configurator -->
-          <PeripheralManager />
-        </aside>
+      <!-- MODE 1: Unified Hardware Studio (100% Edge-to-Edge Infinite Canvas with Embedded Physical Peripherals & Dossiers) -->
+      <div v-if="activeTab === 'hardware' || activeTab === 'rack' || activeTab === 'wiring'" class="tab-pane hardware-canvas-pane">
+        <WiringStudio />
       </div>
 
-      <!-- MODE 2: Runtime Telemetry (Unified HUD & Silicon Treemap Heatmap) -->
+      <!-- MODE 3: Runtime Telemetry (Unified HUD & Silicon Treemap Heatmap) -->
       <div v-else-if="activeTab === 'telemetry'" class="tab-pane telemetry-pane">
         <SiliconTreemap />
       </div>
 
-      <!-- MODE 3: Serial Console & Packet Demux Inspector -->
+      <!-- MODE 4: Serial Console & Packet Demux Inspector -->
       <div v-else-if="activeTab === 'console'" class="tab-pane console-grid">
         <div class="console-col">
           <SerialTerminal />
@@ -260,7 +236,7 @@ async function handleSave() {
         </div>
       </div>
 
-      <!-- MODE 4: ESP32 Bootloader & Firmware Flasher -->
+      <!-- MODE 5: ESP32 Bootloader & Firmware Flasher -->
       <div v-else-if="activeTab === 'flasher'" class="tab-pane flasher-pane">
         <FirmwareFlasher />
       </div>
@@ -579,9 +555,10 @@ async function handleSave() {
 /* Main Studio Workspace */
 .studio-workspace {
   flex: 1;
-  min-height: 0; /* Crucial for internal scroll containers */
-  padding: 0.75rem 1rem;
+  min-height: 0;
+  padding: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .tab-pane {
@@ -589,64 +566,19 @@ async function handleSave() {
   min-height: 0;
 }
 
-/* MODE 1: Rack & Wiring Grid */
-.rack-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 440px;
-  grid-template-rows: minmax(0, 1fr);
-  gap: 1.25rem;
+/* MODE 1: Unified Hardware Studio (100% Infinite Canvas) */
+.hardware-canvas-pane {
   height: 100%;
-  min-height: 0;
+  width: 100%;
   overflow: hidden;
-}
-
-.board-column {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
-}
-
-.rack-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
-  overflow-y: auto; /* Internal scrolling in right rack */
-  overflow-x: hidden;
-  padding-right: 6px;
-}
-
-.rack-sidebar > * {
-  flex-shrink: 0;
-}
-
-.rack-sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.rack-sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.rack-sidebar::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
-}
-
-.rack-sidebar::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-subtle);
 }
 
 /* MODE 2: Telemetry Pane */
 .telemetry-pane {
   height: 100%;
   min-height: 0;
+  padding: 0.75rem 1rem;
   overflow: hidden; /* Strict: zero scrollbars */
   display: flex;
   flex-direction: column;
@@ -658,6 +590,7 @@ async function handleSave() {
   grid-template-columns: 1fr 420px;
   grid-template-rows: minmax(0, 1fr);
   gap: 1rem;
+  padding: 0.75rem 1rem;
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -674,6 +607,7 @@ async function handleSave() {
 .flasher-pane {
   height: 100%;
   min-height: 0;
+  padding: 0.75rem 1rem;
   overflow-y: auto;
 }
 
