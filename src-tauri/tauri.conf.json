@@ -28,6 +28,7 @@
     "targets": "all",
     "resources": {
       "resources/pixelforge_firmware.bin": "resources/pixelforge_firmware.bin",
+      "resources/space_shooter.bin": "resources/space_shooter.bin",
       "resources/bootloader.bin": "resources/bootloader.bin",
       "resources/partitions.bin": "resources/partitions.bin"
     },

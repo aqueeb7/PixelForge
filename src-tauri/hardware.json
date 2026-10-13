@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "board_id": "esp32-devkit-v1-38p",
+  "board_name": "ESP32 DevKit V1 (38-pin)",
+  "peripherals": [
+    {
+      "id": "oled-display-primary",
+      "type": "OLED_128X64_I2C",
+      "name": "1.3\" Monochrome OLED (128x64)",
+      "controller": "SH1106",
+      "i2c_address": "0x3C",
+      "pins": {
+        "VCC": "3V3",
+        "SDA": "D21 (SDA)",
+        "GND": "GND",
+        "SCL": "D22 (SCL)"
+      },
+      "status": "configured"
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-oled-vcc",
+      "source": {
+        "componentId": "oled-display-primary",
+        "pinId": "VCC"
+      },
+      "target": {
+        "componentId": "esp32-mcu",
+        "pinId": "3V3"
+      },
+      "signal": "POWER_3V3"
+    },
+    {
+      "id": "conn-oled-gnd",
+      "source": {
+        "componentId": "oled-display-primary",
+        "pinId": "GND"
+      },
+      "target": {
+        "componentId": "esp32-mcu",
+        "pinId": "GND"
+      },
+      "signal": "GND"
+    },
+    {
+      "id": "conn-oled-sda",
+      "source": {
+        "componentId": "oled-display-primary",
+        "pinId": "SDA"
+      },
+      "target": {
+        "componentId": "esp32-mcu",
+        "pinId": "D21 (SDA)"
+      },
+      "signal": "I2C_SDA"
+    },
+    {
+      "id": "conn-oled-scl",
+      "source": {
+        "componentId": "oled-display-primary",
+        "pinId": "SCL"
+      },
+      "target": {
+        "componentId": "esp32-mcu",
+        "pinId": "D22 (SCL)"
+      },
+      "signal": "I2C_SCL"
+    }
+  ]
+}

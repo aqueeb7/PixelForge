@@ -2,10 +2,10 @@
 
 #if defined(OLED_CONTROLLER_SSD1306)
 DisplayDriver::DisplayDriver()
-    : u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA) {}
+    : u8g2(U8G2_R2, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA) {}
 #else
 DisplayDriver::DisplayDriver()
-    : u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA) {}
+    : u8g2(U8G2_R2, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA) {}
 #endif
 
 bool DisplayDriver::init() {
@@ -13,6 +13,7 @@ bool DisplayDriver::init() {
     // U8g2 expects the 8-bit I2C address (0x3C << 1 = 0x78)
     u8g2.setI2CAddress(OLED_I2C_ADDR << 1);
     bool ok = u8g2.begin();
+    u8g2.setDisplayRotation(U8G2_R2); // 180° rotation for breadboard mounting
     u8g2.clearBuffer();
     u8g2.sendBuffer();
     return ok;

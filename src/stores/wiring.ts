@@ -334,7 +334,7 @@ export const useWiringStore = defineStore('wiring', () => {
 
   // --- Presets ---
 
-  function applyPreset(presetKey: 'oled_default' | 'reel_station' | 'dual_oled' | 'blank') {
+  function applyPreset(presetKey: 'oled_default' | 'reel_station' | 'dual_oled' | 'space_shooter' | 'blank') {
     selectedWireId.value = null
     selectedComponentId.value = null
 
@@ -556,6 +556,87 @@ export const useWiringStore = defineStore('wiring', () => {
           name: 'NET_BUTTON_SIG',
           color: WIRE_COLOR_PALETTE.GPIO,
           nodes: [{ instanceId: 'esp32', pinId: 'D4' }, { instanceId: btn, pinId: 'PIN_A' }],
+        },
+      ]
+    } else if (presetKey === 'space_shooter') {
+      boardPosition.value = { x: 260, y: 120 }
+      const oledId = 'oled-space-1'
+      const btnLeftId = 'btn-space-left'
+      const btnFireId = 'btn-space-fire'
+
+      components.value = [
+        {
+          instanceId: oledId,
+          definitionId: 'oled-096-ssd1306',
+          name: '128×64 Game OLED',
+          position: { x: 680, y: 80 },
+          i2cAddress: 0x3c,
+        },
+        {
+          instanceId: btnLeftId,
+          definitionId: 'button-momentary',
+          name: 'Button 1 (Left / Move)',
+          position: { x: 680, y: 310 },
+        },
+        {
+          instanceId: btnFireId,
+          definitionId: 'button-momentary',
+          name: 'Button 2 (Fire / Right)',
+          position: { x: 680, y: 490 },
+        },
+      ]
+
+      nets.value = [
+        // OLED Power & I2C
+        {
+          id: 'net-space-oled-gnd',
+          name: 'NET_GND',
+          color: WIRE_COLOR_PALETTE.GND,
+          nodes: [{ instanceId: 'esp32', pinId: 'GND' }, { instanceId: oledId, pinId: 'GND' }],
+        },
+        {
+          id: 'net-space-oled-vcc',
+          name: 'NET_3V3',
+          color: WIRE_COLOR_PALETTE.POWER_3V3,
+          nodes: [{ instanceId: 'esp32', pinId: '3V3' }, { instanceId: oledId, pinId: 'VCC' }],
+        },
+        {
+          id: 'net-space-oled-scl',
+          name: 'NET_I2C_SCL',
+          color: WIRE_COLOR_PALETTE.I2C_SCL,
+          nodes: [{ instanceId: 'esp32', pinId: 'D22' }, { instanceId: oledId, pinId: 'SCL' }],
+        },
+        {
+          id: 'net-space-oled-sda',
+          name: 'NET_I2C_SDA',
+          color: WIRE_COLOR_PALETTE.I2C_SDA,
+          nodes: [{ instanceId: 'esp32', pinId: 'D21' }, { instanceId: oledId, pinId: 'SDA' }],
+        },
+        // Button 1 (Left / Move) on D18
+        {
+          id: 'net-space-btn1-gnd',
+          name: 'NET_GND',
+          color: WIRE_COLOR_PALETTE.GND,
+          nodes: [{ instanceId: 'esp32', pinId: 'GND' }, { instanceId: btnLeftId, pinId: 'PIN_B' }],
+        },
+        {
+          id: 'net-space-btn1-sig',
+          name: 'NET_BTN_LEFT',
+          color: WIRE_COLOR_PALETTE.GPIO,
+          nodes: [{ instanceId: 'esp32', pinId: 'D18' }, { instanceId: btnLeftId, pinId: 'PIN_A' }],
+        },
+        // Button 2 (Fire / Right) on D19
+        {
+          id: 'net-space-btn2-gnd',
+          name: 'NET_GND',
+          color: WIRE_COLOR_PALETTE.GND,
+          nodes: [{ instanceId: 'esp32', pinId: 'GND' }, { instanceId: btnFireId, pinId: 'PIN_B' }],
+        },
+        {
+          id: 'net-space-btn2-sig',
+          name: 'NET_BTN_FIRE',
+          color: WIRE_COLOR_PALETTE.GPIO,
+          nodes: [{ instanceId: 'esp32', pinId: 'D19' }, { instanceId: btnFireId, pinId: 'PIN_A' }],
         },
       ]
     }

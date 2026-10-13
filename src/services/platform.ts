@@ -190,6 +190,41 @@ export async function flashPixelforgeFirmware(
 }
 
 /**
+ * Spec 012: Flashes an embedded project blueprint (e.g. Space Shooter arcade) to the ESP32.
+ * No external IDE required.
+ */
+export async function flashProjectFirmware(
+  port?: string,
+  projectId?: string,
+  onProgress?: (progress: FlashProgressEvent) => void
+): Promise<string> {
+  let unlisten: (() => void) | null = null
+
+  if (isTauri() && onProgress) {
+    try {
+      const { listen } = await import('@tauri-apps/api/event')
+      unlisten = await listen<FlashProgressEvent>('firmware-flash-progress', (event) => {
+        onProgress(event.payload)
+      })
+    } catch (e) {
+      console.warn('Failed to listen to firmware-flash-progress event:', e)
+    }
+  }
+
+  try {
+    return await safeInvoke<string>(
+      'flash_project_firmware',
+      { port: port || null, projectId: projectId || null },
+      () => `Simulation: Project '${projectId || 'embedded'}' flashed successfully`
+    )
+  } finally {
+    if (unlisten) {
+      unlisten()
+    }
+  }
+}
+
+/**
  * Returns the deterministic 1024-byte canonical test pattern:
  * - 1px outer border
  * - 8x8 corner markers

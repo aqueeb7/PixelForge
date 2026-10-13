@@ -156,7 +156,10 @@ pub async fn erase_device_flash(
     .map_err(|e| format!("Task join error: {}", e))?
 }
 
-fn resolve_firmware_paths(app: &tauri::AppHandle) -> Result<(std::path::PathBuf, std::path::PathBuf, std::path::PathBuf), String> {
+fn resolve_named_firmware_paths(
+    app: &tauri::AppHandle,
+    bin_name: &str,
+) -> Result<(std::path::PathBuf, std::path::PathBuf, std::path::PathBuf), String> {
     let mut candidates = Vec::new();
 
     // 1. Current workspace / dev directories
@@ -178,7 +181,7 @@ fn resolve_firmware_paths(app: &tauri::AppHandle) -> Result<(std::path::PathBuf,
     }
 
     for dir in &candidates {
-        let fw = dir.join("pixelforge_firmware.bin");
+        let fw = dir.join(bin_name);
         let bl = dir.join("bootloader.bin");
         let pt = dir.join("partitions.bin");
         if fw.exists() && bl.exists() && pt.exists() {
@@ -187,30 +190,36 @@ fn resolve_firmware_paths(app: &tauri::AppHandle) -> Result<(std::path::PathBuf,
     }
 
     // Fallback: check firmware/.pio build artifacts directly
-    let pio_dir = std::path::PathBuf::from("firmware/.pio/build/esp32dev");
-    let fw = pio_dir.join("firmware.bin");
-    let bl = pio_dir.join("bootloader.bin");
-    let pt = pio_dir.join("partitions.bin");
+    let pio_dev = std::path::PathBuf::from("firmware/.pio/build/esp32dev");
+    let pio_target = if bin_name == "space_shooter.bin" {
+        std::path::PathBuf::from("firmware/.pio/build/space_shooter")
+    } else {
+        pio_dev.clone()
+    };
+
+    let fw = pio_target.join("firmware.bin");
+    let bl = pio_dev.join("bootloader.bin");
+    let pt = pio_dev.join("partitions.bin");
     if fw.exists() && bl.exists() && pt.exists() {
         return Ok((bl, pt, fw));
     }
 
     Err(format!(
-        "Could not find firmware binaries. Checked: {}",
+        "Could not find firmware binary '{}'. Checked: {}",
+        bin_name,
         candidates.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
     ))
 }
 
-#[tauri::command]
-pub async fn flash_pixelforge_firmware(
+async fn perform_flash_internal(
     app: tauri::AppHandle,
-    state: State<'_, SharedSerialManager>,
+    manager: SharedSerialManager,
     port: Option<String>,
+    bl_path: std::path::PathBuf,
+    pt_path: std::path::PathBuf,
+    fw_path: std::path::PathBuf,
+    target_label: &str,
 ) -> Result<String, String> {
-    let (bl_path, pt_path, fw_path) = resolve_firmware_paths(&app)?;
-
-    let manager = state.inner().clone();
-
     // Determine target port: explicit param -> active port -> first detected port
     let target_port = {
         let mg = manager.lock().await;
@@ -265,6 +274,35 @@ pub async fn flash_pixelforge_firmware(
         let _ = mg.connect(&target_port, 115200);
     }
 
-    Ok(format!("Successfully flashed PixelForge firmware to {}", target_port))
+    Ok(format!("Successfully flashed {} to {}", target_label, target_port))
+}
+
+#[tauri::command]
+pub async fn flash_pixelforge_firmware(
+    app: tauri::AppHandle,
+    state: State<'_, SharedSerialManager>,
+    port: Option<String>,
+) -> Result<String, String> {
+    let (bl_path, pt_path, fw_path) = resolve_named_firmware_paths(&app, "pixelforge_firmware.bin")?;
+    let manager = state.inner().clone();
+    perform_flash_internal(app, manager, port, bl_path, pt_path, fw_path, "PixelForge Official OS").await
+}
+
+#[tauri::command]
+pub async fn flash_project_firmware(
+    app: tauri::AppHandle,
+    state: State<'_, SharedSerialManager>,
+    port: Option<String>,
+    project_id: Option<String>,
+) -> Result<String, String> {
+    let (bin_name, label) = match project_id.as_deref() {
+        Some("blueprint-space-shooter") | Some("space_shooter") => {
+            ("space_shooter.bin", "Space Shooter Arcade")
+        }
+        _ => ("pixelforge_firmware.bin", "PixelForge Firmware"),
+    };
+    let (bl_path, pt_path, fw_path) = resolve_named_firmware_paths(&app, bin_name)?;
+    let manager = state.inner().clone();
+    perform_flash_internal(app, manager, port, bl_path, pt_path, fw_path, label).await
 }
 

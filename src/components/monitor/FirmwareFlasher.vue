@@ -104,21 +104,25 @@ function handleErase() {
       <div class="card flash-card">
         <div class="card-top">
           <span class="badge-official">RECOMMENDED</span>
-          <h4 class="card-heading">1-Click PixelForge Runtime</h4>
+          <h4 class="card-heading">1-Click PixelForge Official OS</h4>
           <p class="card-desc">
-            Instantly flash the official PixelForge runtime firmware onto a fresh ESP32 board.
-            Zero toolchains or Arduino IDE needed.
+            Instantly flash the official PixelForge runtime firmware onto your ESP32.
+            Enables 60 FPS live video streaming, Hardware Monitor telemetry, and LittleFS animation reel playback.
           </p>
         </div>
 
         <div class="card-specs">
           <div class="spec-row">
-            <span>Target Memory Offset:</span>
-            <span class="font-mono">0x10000 (App)</span>
+            <span>Platform Role:</span>
+            <span class="font-mono text-cyan-400">Desktop Companion</span>
+          </div>
+          <div class="spec-row">
+            <span>Features:</span>
+            <span class="font-mono">Streaming · Telemetry · LittleFS</span>
           </div>
           <div class="spec-row">
             <span>Display Driver:</span>
-            <span class="font-mono">SH1106 / SSD1306 (U8g2)</span>
+            <span class="font-mono">SH1106 1.3" / SSD1306 (U8g2)</span>
           </div>
         </div>
 

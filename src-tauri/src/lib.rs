@@ -12,7 +12,8 @@ use commands::app_info::get_app_info;
 use commands::hardware::{get_board_profiles, get_hardware_config, save_hardware_config};
 use commands::monitor::{
     detect_chip_dossier, erase_device_flash, flash_firmware, flash_pixelforge_firmware,
-    get_telemetry, poll_serial_events, restart_device, send_serial_command, send_serial_raw_hex,
+    flash_project_firmware, get_telemetry, poll_serial_events, restart_device, send_serial_command,
+    send_serial_raw_hex,
 };
 use commands::serial::{
     clear_display, connect_device, disconnect_device, get_device_info, get_test_pattern,
@@ -49,6 +50,7 @@ pub fn run() {
             detect_chip_dossier,
             flash_firmware,
             flash_pixelforge_firmware,
+            flash_project_firmware,
             erase_device_flash,
             upload_and_play_reel,
             stop_device_reel

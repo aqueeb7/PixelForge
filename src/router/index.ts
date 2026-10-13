@@ -21,7 +21,7 @@ const router = createRouter({
     { path: '/animation', name: 'animation', component: () => import('../views/PlaceholderView.vue') },
     { path: '/hardware',  name: 'hardware',  component: () => import('../views/HardwareView.vue') },
     { path: '/devices',   redirect: '/hardware' },
-    { path: '/projects',  name: 'projects',  component: () => import('../views/PlaceholderView.vue') },
+    { path: '/projects',  name: 'projects',  component: () => import('../views/ProjectsView.vue') },
     { path: '/settings',  name: 'settings',  component: () => import('../views/PlaceholderView.vue') },
   ],
 })

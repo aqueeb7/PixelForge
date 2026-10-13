@@ -19,7 +19,7 @@ onMounted(() => {
 
 function handlePresetChange(e: Event) {
   const target = e.target as HTMLSelectElement
-  const val = target.value as 'oled_default' | 'reel_station' | 'dual_oled' | 'blank'
+  const val = target.value as 'oled_default' | 'reel_station' | 'dual_oled' | 'space_shooter' | 'blank'
   wiringStore.applyPreset(val)
   selectedPreset.value = val
 }
@@ -61,6 +61,7 @@ function handleResetView() {
             @change="handlePresetChange"
           >
             <option value="oled_default">⚡ 128×64 OLED Workstation</option>
+            <option value="space_shooter">🚀 Space Shooter (OLED + 2 Buttons)</option>
             <option value="reel_station">🎛️ Reel Station (OLED + EC11 Encoder)</option>
             <option value="dual_oled">📟 Dual Display HUD (0x3C & 0x3D)</option>
             <option value="blank">🧹 Blank Breadboard</option>
